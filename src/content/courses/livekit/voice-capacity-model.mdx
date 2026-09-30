@@ -1,0 +1,111 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 22
+unit: 5
+unitTitle: 'Finding the ceilings'
+title: 'Voice capacity model: sizing a LiveKit fleet from per-call slopes'
+navTitle: 'A capacity model'
+summary: 'How many machines carry 500 concurrent calls? Divide by RSS and the workers need 7. Divide by PSS: 3 at most. A worked sizing model from four measured slopes.'
+seoTitle: 'Voice Capacity Model: Sizing a LiveKit Fleet | Mahimai'
+keywords:
+  - 'voice capacity model'
+  - 'LiveKit sizing'
+  - 'voice fleet capacity planning'
+  - 'how many LiveKit nodes'
+proficiency: 'Advanced'
+faq:
+  - q: 'How many concurrent calls can one LiveKit media node carry?'
+    a: 'On the fleet we measured, the SFU used 18.3 UDP ports per call against a 10,001-port range, so ports run out near 550 calls, the same point CPU reaches 70%. We run 400 calls per node, 27% below the port ceiling, because port exhaustion produces calls with no audio instead of an error.'
+  - q: 'How much memory does one LiveKit agent call use?'
+    a: 'Measured as PSS against active calls, 122 MB per concurrent call on a Python worker, on top of an idle baseline of about 1.5 GB. RSS reported 404 MB per call because it counts pages shared with the forkserver parent in every process.'
+  - q: 'Should a voice fleet be sized on concurrency or calls per second?'
+    a: 'Both, and you should say which one binds. Concurrency sizes carrying (ports, memory, steady CPU); calls per second sizes setup (signalling, dispatch, worker spawn). 500 concurrent five-minute calls need 1.67 calls per second; 500 concurrent 30-second calls need 16.7.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
+
+Your peak is 500 concurrent calls. How many media nodes and how many worker machines do you buy?
+
+Divide by RSS and the worker tier needs seven machines. Divide by PSS and it needs three at most. Same fleet, same calls; the only difference is which memory number you trust.
+
+This lesson builds the sizing model end to end with the numbers measured in earlier lessons: four per-call slopes, one binding constraint per tier, and the peak arithmetic that sets how many nodes you keep warm. By the end you can run the same calculation on your own fleet and state the result as one sentence someone can check.
+
+## Step 1: the per-call cost table
+
+A capacity model starts with one slope per resource per tier: what one more concurrent call costs. Each number below is a slope across several load levels, so it is a marginal cost and excludes the idle baseline.
+
+| Tier and resource       | Per call             | Node budget      | Ceiling    |
+| ----------------------- | -------------------- | ---------------- | ---------- |
+| SFU media ports         | 18.3                 | 10,001 ports     | ~550 calls |
+| SFU CPU                 | ~0.1% above baseline | 70% target       | ~550 calls |
+| Worker memory, PSS      | 122 MB               | 30 GB            | ~245 calls |
+| Worker file descriptors | 38.4                 | configured limit | set by you |
+
+Where they came from:
+
+- **SFU ports and CPU** from the three saturation steps in [LiveKit port exhaustion](/learn/100x/livekit/livekit-port-exhaustion): 204, 408 and 612 calls on one node. The 10,001-port budget is LiveKit's default media range, `rtc.port_range_start` 50000 to `rtc.port_range_end` 60000, documented under [ports and firewall](https://docs.livekit.io/transport/self-hosting/ports-firewall/).
+- **Worker memory and descriptors** from the ramp to 40 concurrent calls in [memory per call: PSS vs RSS](/learn/100x/livekit/livekit-agent-memory-pss-rss).
+
+The descriptor row has no ceiling until you set one. At 38.4 per call a hundred calls want roughly 3,840 descriptors, against a systemd soft default of 1,024. That limit is `LimitNOFILE=` in the unit file (see [systemd.exec](https://man7.org/linux/man-pages/man5/systemd.exec.5.html)), and the slope tells you what to set it to.
+
+## Step 2: find the binding constraint per tier
+
+A node's capacity is the lowest of its ceilings, minus the headroom you choose to keep. Only one resource binds per tier, and it is the one you size and alarm on.
+
+**The SFU binds on ports.** Ports and CPU both run out near 550 calls, which is exactly why a CPU-only model looks right. We set the SFU at 400 calls per node, 27% below the port ceiling, because ports fail without an error and CPU does not. At 400 calls a node holds 400 x 18.3 = 7,320 ports, with the rest of the 10,001 as margin.
+
+**Workers bind on CPU.** Before the PSS correction memory looked like the constraint, and this is the arithmetic that changed the purchase:
+
+| Memory figure used | Per call | Calls per 30 GB node | Nodes for 500 calls |
+| ------------------ | -------- | -------------------- | ------------------- |
+| RSS                | 404 MB   | ~74                  | 7                   |
+| PSS                | 122 MB   | ~245                 | 3                   |
+
+Three nodes is the memory ceiling. After the correction, CPU hit its limit before memory did, so the real worker count comes from your measured CPU density per node, which is lower than 245 by definition of "binds". The instance family changed with it: compute-optimised instead of memory-optimised.
+
+<CourseFigure
+  id="lk-capacity-model"
+  title="Per-call slopes for the SFU (media ports, CPU) and the workers (memory PSS, file descriptors, CPU) feed each tier's binding constraint: the SFU binds on ports at 400 calls per node with 27% headroom, the workers bind on CPU after the PSS correction. Both feed fleet size, set by peak calls plus bursts with scale-out lead time."
+>
+  Each tier has several slopes but only one binds: ports at the SFU, CPU at the workers. We size the
+  fleet from those two, at peak.
+</CourseFigure>
+
+## Step 3: check the second axis, calls per second
+
+Everything above sizes carrying. Setup capacity, calls per second, is a separate measured number from [concurrency vs calls per second](/learn/100x/livekit/concurrency-vs-cps), and short-call workloads are sized on it.
+
+The same 500 concurrent calls can mean very different setup load:
+
+- 500 concurrent at 5 minutes average: 500 / 300 s = 1.67 calls per second.
+- 500 concurrent at 30 seconds average: 500 / 30 s = 16.7 calls per second.
+
+Identical port and memory load, ten times the signalling, dispatch and worker spawn. Our runs covered 0.33 to 2.0 calls per second, so the first shape sits inside measured territory and the second does not. Write down which axis binds for your traffic shape, and say so when you have measured only one.
+
+## Step 4: size for the peak and the lead time
+
+Fleet count comes from peak concurrent calls plus arrival bursts, with scale-out lead time subtracted. A node that takes four minutes to boot serves the peak only if the scaler fired four minutes early.
+
+Worked through for the SFU at a 500-call peak:
+
+1. **Carry the peak.** 500 / 400 per node = 1.25, so 2 nodes.
+2. **Survive losing one.** With 2 nodes, one failure leaves 500 calls on a node capped at 400. You need 3 to keep every surviving node under its cap.
+3. **Cover the boot time.** Ask how many calls concurrency can climb in four minutes at your busiest ramp. If that is close to a node's worth (400 calls), the next node has to be running before the ramp starts. That number is your warm floor, and it is what the [active-calls autoscaling signal](/learn/100x/livekit/voice-autoscaling-signal) should never scale below.
+
+Run the same four steps for the worker tier with your CPU density in place of 400.
+
+<Pull>
+  A capacity claim is a sentence with numbers and conditions: this fleet carries N concurrent calls
+  at up to R calls per second, binding on ports at the SFU and CPU at the workers, with 27%
+  headroom. Anything vaguer is a wish wearing a spreadsheet.
+</Pull>
+
+## When to re-measure
+
+Re-measure the slopes on every meaningful upgrade. Framework versions change per-call memory, and config changes move port consumption. Keeping the model current costs one load-test ramp per upgrade; rebuilding it after an outage costs far more, and an outage is the usual alternative schedule.
+
+Next: every slope above was found by counting something per call. [Silent failures](/learn/100x/livekit/voice-silent-failures) shows what happens when you count a fleet average instead.

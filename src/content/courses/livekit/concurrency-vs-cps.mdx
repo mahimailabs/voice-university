@@ -1,0 +1,102 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 15
+unit: 4
+unitTitle: 'Load testing voice agents'
+title: 'Concurrency vs calls per second: two different voice capacity tests'
+navTitle: 'Concurrency vs calls per second'
+summary: 'Months of load tests at 150 to 600 concurrent calls, and nobody could say what our calls-per-second ceiling was. Why the two numbers stress different layers.'
+seoTitle: 'Concurrency vs Calls per Second in Voice Capacity | Mahimai'
+keywords:
+  - 'concurrency vs CPS'
+  - 'calls per second capacity'
+  - 'voice agent capacity'
+  - 'CPS load test'
+proficiency: 'Advanced'
+faq:
+  - q: 'What is the difference between concurrency and calls per second?'
+    a: 'Concurrency is how many calls are up at once; calls per second (CPS) is how fast new calls arrive. Concurrency stresses carrying (media relay, ports, bandwidth, steady CPU) and CPS stresses setup (signalling, room creation, agent dispatch, worker pool spawn).'
+  - q: 'How do you calculate calls per second from concurrency?'
+    a: 'Divide concurrency by the average call duration in seconds. 500 concurrent calls of 5 minutes need 1.67 CPS; 500 concurrent calls of 30 seconds need 16.7 CPS, ten times the setup work for the same media load.'
+  - q: 'How do you load test calls per second?'
+    a: 'Hold concurrency flat and push the arrival rate up in steps, shortening the hold time so that rate times duration stays constant. The step where call setup starts timing out is your CPS ceiling at that concurrency.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
+import Practice from '../../../components/course/Practice.astro';
+
+Every load test on the project held a target concurrency: 150, 300, 500, 600. Months of runs, tens of thousands of calls, a capacity model fitted to per-node measurements.
+
+Then someone asked what our calls-per-second (CPS) ceiling was. We did not know, and none of the runs could tell us.
+
+By the end of this page you'll know why concurrency and CPS are separate capacity axes, which parts of a voice stack each one loads, and how to design a run that finds the CPS ceiling on purpose.
+
+## How concurrency and calls per second relate
+
+Concurrency is arrival rate multiplied by average call duration. Fix any two and the third follows:
+
+```text
+concurrency = calls per second x average call duration
+```
+
+This is [Little's law](https://en.wikipedia.org/wiki/Little%27s_law) applied to calls, and it hides a gap. Our harness derived the arrival rate from the concurrency and hold time we asked for. Rate was never a dial.
+
+That is good design for repeatable capacity runs, and it meant we had covered a range of rates only by accident: 0.33 CPS on the soak up to 2.0 CPS on the burst. What we had never done is hold concurrency flat and push the rate up, which is the only way to find where call setup breaks.
+
+## Which layers each number stresses
+
+Calls per second stresses setup: signalling, transaction state, room creation, agent dispatch, worker pool spawn. Concurrency stresses carrying: media relay, ports, bandwidth, steady CPU.
+
+The same concurrency figure can hide a tenfold difference in setup load:
+
+| Concurrency | Average call length | Required CPS |
+| ----------- | ------------------- | ------------ |
+| 500         | 5 minutes           | 1.67         |
+| 500         | 30 seconds          | 16.7         |
+
+Identical media load. Ten times the setup work. A fleet that holds 500 five-minute calls comfortably has told you nothing about 500 thirty-second calls.
+
+<CourseFigure
+  id="lk-cps-vs-concurrency"
+  title="Two capacity axes. Calls per second stresses setup: signalling, transaction state, room creation, agent dispatch and worker pool spawn. Concurrency stresses carrying: media relay, ports, bandwidth and steady CPU."
+>
+  A concurrency test loads the right-hand column and says little about the left. Worker pool spawn
+  is marked because that is where our rate failure hid.
+</CourseFigure>
+
+## Where it bit us: a rate failure at 50 concurrent
+
+The agent tier failed at 50 concurrent calls, and the failure was not media. The generator timed out waiting for the answer, because the worker pool was spawning processes and could not do it fast enough.
+
+It was an arrival-rate failure wearing a concurrency costume. We found it only because a ramp happened to push the rate up alongside the concurrency. Read as a concurrency result, "fails at 50" would have sent us looking at ports and memory, where the [per-call slopes](/learn/100x/livekit/livekit-agent-memory-pss-rss) said there was plenty of room.
+
+Worker pool spawn is a setup cost. The Python agents framework keeps some processes warm ahead of demand, controlled by `num_idle_processes` (see the [server options](https://docs.livekit.io/agents/server/options/) docs), which is one of the first knobs to look at when setup is what times out.
+
+## How to test the CPS ceiling on purpose
+
+Hold concurrency flat and raise the arrival rate in steps. To keep concurrency constant, shorten the hold time as the rate goes up, so rate times duration stays the same.
+
+Here is an example step plan for 500 concurrent. The first and last rows are the two cases above; the middle rows are filled in with the same arithmetic:
+
+| Step | Target CPS | Hold time per call | Concurrency |
+| ---- | ---------- | ------------------ | ----------- |
+| 1    | 1.67       | 300 s (5 minutes)  | 500         |
+| 2    | 5          | 100 s              | 500         |
+| 3    | 10         | 50 s               | 500         |
+| 4    | 16.7       | 30 s               | 500         |
+
+Hold each step long enough to reach steady state before moving on, and watch the setup side while you do: time from INVITE to answer, answer timeouts, dispatch latency and worker spawn. The step where setup starts to fail is your CPS ceiling at 500 concurrent. Media metrics should stay flat across every step. If they move, you have changed the carrying load by accident.
+
+The rig itself (real calls, per-call RTP counts, a fleet-side collector) is the one from [how to load test a voice agent](/learn/100x/livekit/voice-agent-load-testing). Both axes then feed the [capacity model](/learn/100x/livekit/voice-capacity-model), which keeps setup and carrying as separate columns.
+
+<Practice label="When you report capacity">
+  State both numbers whenever you state capacity, and say which one you varied. 500 concurrent is
+  one point on a two-dimensional surface, and on its own it says nothing about arrival rate. If you
+  have only measured one axis, say so. The number is still useful; it is just not the number
+  somebody should plan an arrival-rate ceiling from.
+</Practice>
+
+Next: [per-call resource accounting](/learn/100x/livekit/per-call-resource-accounting), the method that turns a load test's raw rows into slopes you can size from.

@@ -1,0 +1,115 @@
+---
+course: 'stt'
+courseTitle: 'STT Model'
+order: 2
+title: 'Working with STT data'
+summary: 'Verbatim versus cleaned transcripts, building a corpus matched to your deployment, augmentation as the way to manufacture conditions, and the consent a recording carries.'
+lessons:
+  - { n: 4, title: 'Transcripts: verbatim versus cleaned, and which to train on' }
+  - { n: 5, title: 'Building a labelled corpus: segmentation, alignment, speakers' }
+  - { n: 6, title: 'Augmentation: manufacturing the conditions you cannot collect' }
+  - { n: 7, title: 'Licensing, consent, and PII in recordings' }
+status: 'ready'
+updatedDate: 2026-08-19
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import Practice from '../../../components/course/Practice.astro';
+import Figure from '../../../components/course/Figure.astro';
+import AugmentationStack from '../../../components/course/figures/AugmentationStack.astro';
+
+## 4. Transcripts: verbatim versus cleaned, and which to train on
+
+An STT training pair is audio plus its transcript, and the first decision is what counts as the transcript. Two conventions exist and mixing them poisons a corpus.
+
+**Verbatim transcripts** record what was actually said: false starts, repetitions, filler words, self-corrections. "I want to, uh, I want to cancel my, my subscription."
+
+**Cleaned transcripts** record what the speaker meant: "I want to cancel my subscription."
+
+A model learns the mapping you show it. Trained on verbatim, it transcribes disfluencies faithfully, and downstream consumers decide what to do with them. Trained on cleaned, it learns to silently drop hesitations, which reads better but discards information, and teaches a more dangerous habit: that omitting audible words is sometimes correct. That habit generalises badly.
+
+<Pull>
+  The rule: train on one convention, chosen deliberately, applied everywhere. A corpus that mixes
+  the two teaches the model that word dropping is random, and the model obliges.
+</Pull>
+
+The same discipline applies to **normalisation**: numbers, dates, and abbreviations must follow one written convention across the corpus, because at evaluation time, unit 4, every mismatch between conventions is counted as an error whether or not the model heard correctly.
+
+<Practice>
+  For agent pipelines, verbatim wins. The language model downstream is better placed to interpret
+  disfluencies than the STT model is to delete them, and hesitations carry signal that turn
+  detection, lesson 10 of the components pages, actively uses.
+</Practice>
+
+## 5. Building a labelled corpus: segmentation, alignment, speakers
+
+Unlike TTS, which wants one consistent voice, recognition data wants the opposite: every speaker, accent, device, and acoustic condition your deployment will meet. The corpus-building pipeline reflects that.
+
+**Segmentation.** Long recordings become utterances of roughly 1 to 30 seconds, cut in silence. For call data, cut per speaker turn, which the telephony stack usually gives you free as separate channels per party. Mixed-channel recordings need diarisation, which adds its own errors; prefer channel-separated capture at the source whenever you control it.
+
+**Alignment as quality control.** Forced alignment matches transcript words to audio timestamps, and its confidence score is your cheapest transcript verifier at scale: segments that refuse to align carry wrong transcripts far more often than not. Align everything, sort by confidence, discard the bottom, hand-check a sample of the middle.
+
+**Speaker and condition metadata.** Tag what you can: channel, device class, accent region if known, noise tier. Not for training, necessarily, but for evaluation slicing: unit 4's honest measurement depends on being able to ask how the model does on mobile calls from one region versus another.
+
+<Pull>
+  The distribution question outranks the volume question. A thousand hours that undersample your
+  hardest condition produces a model that fails exactly where your callers struggle most. Match the
+  corpus to the deployment distribution first, then scale it.
+</Pull>
+
+<Practice>
+  Your production calls, consent and scrubbing permitting per lesson 7, are the only data that
+  perfectly matches your deployment distribution. A pipeline that continuously harvests, aligns, and
+  filters them into training data is the compounding asset. Everything public is an approximation.
+</Practice>
+
+## 6. Augmentation: manufacturing the conditions you cannot collect
+
+Augmentation multiplies a corpus by transforming it: each clean recording becomes many training examples under manufactured conditions. For recognition it is not an optimisation. It is how models learn robustness to conditions you could never collect enough of naturally.
+
+The standard stack:
+
+- **Noise injection.** Mix background noise, babble, music, traffic, appliances, at controlled SNR levels. The single highest-value augmentation for real-world audio.
+- **Reverberation.** Convolve with room impulse responses so the model meets rooms, not just microphones.
+- **Codec simulation.** Round-trip clean audio through telephony codecs and resampling to 8 kHz and back. This is how wideband corpora become useful for narrowband deployment, closing lesson 2's gap directly.
+- **Speed and tempo perturbation.** Small factors, 0.9x to 1.1x, teach invariance to speaking rate cheaply.
+- **Spectral masking.** Blank random time and frequency stripes in the feature matrix during training, forcing the model to infer from context rather than memorise complete patterns. Cheap, standard, effective.
+
+<Figure label="One clean recording, many conditions">
+  <AugmentationStack />
+</Figure>
+
+<Pull>
+  Augment to your deployment, not to a checklist. A telephone agent's training mix should be
+  dominated by codec simulation and noise at call-centre SNR levels. A meeting transcriber wants
+  reverb and competing speech. The augmentation recipe is a description of where the model will
+  live.
+</Pull>
+
+<Practice>
+  Keep the clean originals and augment on the fly during training rather than baking augmented
+  copies to disk. It keeps the corpus honest, the storage sane, and the recipe adjustable per
+  training run instead of per collection effort.
+</Practice>
+
+## 7. Licensing, consent, and PII in recordings
+
+Recognition training data carries the same three obligations as synthesis data, with the weights shifted: less about voice identity, more about what was said.
+
+**Dataset licenses.** Public speech corpora range from permissive to research-only, and the most restrictive license in your training mix governs the model. Research-only corpora cannot back a commercial recognition product, however convenient their size. Track provenance per source from day one.
+
+**Consent for call recordings.** Production calls are the best training data, lesson 5, and the most regulated. Recording consent, one-party or all-party depending on jurisdiction, is the floor. Training use on top of recording consent typically needs its own lawful basis: consent language that covers improvement of services, or an anonymisation standard that takes the data out of scope. This is a counsel question with jurisdiction-specific answers, not a checkbox.
+
+**PII in the audio and the transcript.** Callers say names, account numbers, card numbers, addresses. A recognition corpus built from calls contains all of it, twice: in the audio and in the text. Scrubbing means detecting and redacting in both, and your redaction quality bounds your risk. Regulated industries add retention and residency rules on top, which is part of why lesson 20's on-prem stack exists.
+
+<Pull>
+  The working standard is the same as the TTS course: for every training clip, you can answer where
+  it came from, what covers its use, and whether that covers commercial training. Unclear answers
+  keep the clip out.
+</Pull>
+
+<Practice>
+  The call-harvesting pipeline from lesson 5 is only an asset if this lesson is built into it, not
+  bolted on later. Redaction, consent flags, and provenance travel with each clip from ingestion, or
+  the whole corpus inherits the compliance status of its worst clip.
+</Practice>

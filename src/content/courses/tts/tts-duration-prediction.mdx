@@ -1,0 +1,106 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 13
+unit: 4
+unitTitle: 'The acoustic model'
+title: 'TTS duration prediction and the length regulator'
+navTitle: 'Duration prediction'
+summary: 'Every letter our model reads gets at least one 11.6 ms mel frame. That one clamp is why a duration-driven TTS model cannot silently drop a word it was given.'
+seoTitle: 'TTS Duration Prediction and the Length Regulator | Mahimai'
+keywords:
+  - 'TTS duration prediction'
+  - 'length regulator'
+  - 'duration predictor FastSpeech'
+  - 'phoneme durations from forced alignment'
+  - 'why TTS skips words'
+proficiency: 'Intermediate'
+faq:
+  - q: 'What is a length regulator in TTS?'
+    a: "It is the step that expands a text sequence to the length of the audio. Each input symbol has a duration in mel frames, and the length regulator repeats that symbol's hidden vector that many times, so the decoder receives one vector per output frame. FastSpeech introduced the name."
+  - q: 'Where do the duration targets for training come from?'
+    a: "From an alignment between the transcript and the audio. FastSpeech took them from the attention of a teacher model, FastSpeech 2 extracts them from the speech, and our tiny model uses a CTC forced aligner (torchaudio MMS) whose 20 ms frames we convert to the vocoder's 256-sample hop."
+  - q: 'Why do duration-based TTS models not skip words?'
+    a: 'Because the output length is built by adding up one predicted duration per input symbol, and every symbol is given at least one frame. There is no attention step that can jump past part of the text. They can still mispronounce a word, and they cannot say anything the text front end removed before the model saw it.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
+import Practice from '../../../components/course/Practice.astro';
+
+Every letter our model reads gets at least one mel frame, 11.6 ms of audio. It is one call to `torch.clamp` with `min=1`, and it is the reason a duration-driven TTS model cannot quietly skip a word you gave it.
+
+This page follows durations from the aligner to the output: where the numbers come from, what the length regulator does with them, and what the predictor learns. By the end you will know why parallel models fail differently from attention models, and which failures they still have.
+
+## What is duration prediction in text-to-speech?
+
+It is predicting how many output frames each input symbol lasts. Text is short and audio is long: a median LJSpeech clip is 102 characters and 6.76 s, which at a 256-sample hop is about 580 mel frames. Something has to decide how those frames are shared out.
+
+Attention-based models such as [Tacotron 2](https://arxiv.org/abs/1712.05884) decide it implicitly. The decoder produces one frame at a time and attends back to the text to work out where it is. [FastSpeech](https://arxiv.org/abs/1905.09263) made the decision explicit: a duration predictor outputs a number per symbol, and a length regulator stretches the sequence to match. Everything downstream can then run in parallel.
+
+## Where do TTS durations come from?
+
+From an alignment between the transcript and the recording. The model needs true durations to learn from, and those have to be measured on the training audio.
+
+The papers took them from different places. FastSpeech extracted them from the attention of an autoregressive teacher model. [FastSpeech 2](https://arxiv.org/abs/2006.04558) extracts duration, pitch and energy from the speech itself and trains on them directly, which its authors report made training 3x faster than FastSpeech. Later work such as the [alignment learning framework](https://arxiv.org/abs/2108.10447) learns the alignment inside the TTS model, so no external aligner is needed.
+
+We used an external one. [Forced alignment](/learn/100x/tts/forced-alignment-tts) with torchaudio's MMS gives each letter a span of 20 ms aligner frames. The vocoder wants frames of 256 samples at 22,050 Hz, 11.6 ms, so our alignment step converts with cumulative rounding and forces the last boundary onto the true mel length:
+
+```python
+to_mel = lambda f: int(round(f * sec_per_frame * SR_VOCODER / HOP))
+# convert to mel frames via cumulative rounding so the sum equals n_mel
+cum = [0] + [to_mel(e) for (_, e) in durs_frames]
+cum[-1] = n_mel
+cum = np.maximum.accumulate(np.minimum(cum, n_mel))
+durs = np.diff(cum).astype(int).tolist()
+```
+
+Rounding each duration on its own would let errors pile up across a sentence. Rounding the running total keeps every clip's durations summing exactly to its mel length, and the data prep step asserts that before it saves anything. Spaces own the gaps between words, pauses included, so every mel frame belongs to exactly one symbol.
+
+<CourseFigure
+  id="tts-alignment-durations"
+  title="Audio and transcript go into the MMS aligner, which gives letter spans; the spans become mel-frame durations; the length regulator repeats each letter's vector by its duration."
+>
+  Durations are the bridge between the aligner and the acoustic model. They are also a free quality
+  check: a letter held for more than 1.4 s is a broken alignment.
+</CourseFigure>
+
+That last check is in the prep step too: any clip with a symbol longer than 120 frames (120 × 256 / 22,050 = 1.39 s) is dropped. On our 571-clip subset it removed nothing that the confidence filter had not already removed.
+
+## What does the length regulator do?
+
+It repeats each symbol's hidden vector by that symbol's duration. After it, the sequence has one vector per output frame, and the decoder never has to decide where it is in the text.
+
+In training the durations are the aligner's. At inference they come from the predictor:
+
+```python
+logd = self.dur(x.transpose(1, 2)).squeeze(1)
+durs = torch.clamp(torch.round((torch.exp(logd) - 1) * pace), min=1).long()
+durs = durs.masked_fill(pad, 0)
+h, lens = self.regulate(x, durs)
+```
+
+The predictor outputs `log(1 + frames)`, so the code inverts that, multiplies by `pace`, rounds, and clamps. `pace` is a free speaking-rate control: 1.2 stretches every symbol by about 20% (after rounding and the one-frame minimum). The clamp guarantees each real symbol appears in the output at least once. Padding is set back to zero.
+
+## Why do parallel TTS models not skip or repeat words?
+
+Because output length is a sum of per-symbol durations, not the result of attention finding its way along the text. There is no step at which the model can lose its place.
+
+The FastSpeech authors report that their approach "nearly eliminates the problem of word skipping and repeating in particularly hard cases" compared with the autoregressive baseline. Our three probe sentences point the same way in miniature: at the checkpoint we kept, Whisper returned the same number of words as the input on every probe, and every error was a substitution, such as "pull" for "call". Three sentences is a small sample. The eval harness in unit 6 runs a larger set.
+
+Two failures remain. The model can say the right number of words wrong, because a substituted sound costs no frames. And it can only speak what reaches it: our `encode` keeps letters, apostrophe and space, so digits vanish before the model sees them. That belongs to [text normalisation](/learn/100x/tts/text-normalisation-tts), and it shows up again in [hallucinations](/learn/100x/tts/tts-hallucinations).
+
+## How well does a duration predictor learn?
+
+Quickly. In our run the duration loss (MSE on `log(1 + frames)`) fell from 1.39 at step 50 to 0.108 by step 550 and 0.042 by step 1,650, while the mel loss was still moving.
+
+The predictor is two small convolutions over the encoder output. It learns an average: how long this letter usually lasts in this context, for this one reader. That is enough for Whisper to recover most probe words (21% word error rate at our best checkpoint). It says nothing about intonation, though: pitch is left for the decoder to guess. Predicting pitch per symbol the same way is the next step up, covered in [FastPitch](/learn/100x/tts/fastpitch-pitch-energy).
+
+<Practice label="Check your durations">
+  Before training anything, sum each clip's durations and compare against its mel length, then list
+  the longest single-symbol duration per clip. A mismatch in the first check is a hop or sample rate
+  bug. An outlier in the second is a bad alignment you do not want to train on.
+</Practice>
+
+Next: [train the model](/learn/100x/tts/train-tts-model-from-scratch) that uses these durations, and hear it at four checkpoints.

@@ -1,0 +1,92 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 6
+unit: 2
+unitTitle: 'The dataset'
+title: 'TTS dataset licensing and voice consent: what you can ship'
+navTitle: 'Licensing and consent'
+summary: 'One Piper voice carries 2 licenses: GPL for the runtime, MIT for the weights. Our own pipeline uses a non-commercial aligner. How to trace what a TTS model inherits.'
+seoTitle: 'TTS Dataset Licensing and Voice Consent | Mahimai'
+keywords:
+  - 'TTS dataset license'
+  - 'voice consent'
+  - 'LJSpeech license'
+  - 'Piper TTS license'
+  - 'MMS aligner license'
+  - 'commercial TTS training data'
+proficiency: 'Beginner'
+faq:
+  - q: 'Can I use LJSpeech to train a commercial TTS model?'
+    a: 'The LJSpeech dataset page states the dataset is in the public domain with no restrictions on use in the United States and likely elsewhere. The dataset is only one input, though. Check the license of every pretrained model and tool in your pipeline too, such as the aligner, the vocoder and the runtime.'
+  - q: 'Why does a TTS voice have two licenses?'
+    a: 'Because the runtime and the weights are separate works. Piper is the example we checked: the piper-tts runtime (OHF-voice/piper1-gpl) is GPL-3.0-or-later, while the rhasspy/piper-voices repository that holds the voice files is MIT, and the LJSpeech voice card lists its dataset as public domain. Each license governs a different thing you ship.'
+  - q: 'What consent do I need to train a TTS voice on a real person?'
+    a: 'Informed, written consent from the speaker that covers the actual use: training a synthetic voice, commercial deployment and modification of the output. Recordings made under older contracts that never mention synthesis are a grey area. This is general guidance, not legal advice; take specific cases to counsel.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Pull from '../../../components/course/Pull.astro';
+
+One Piper voice ships under two licenses. The runtime that speaks it is GPL-3.0-or-later; the file holding the voice weights is MIT. Our own teaching pipeline pulls in three outside components under three different licenses (a dataset and an aligner for data preparation, a vocoder for synthesis), and one of them is non-commercial. Evaluation adds two more: Whisper as the transcriber and Piper as the baseline.
+
+A voice model inherits obligations from everything that touched it: the recordings, the transcripts, the speaker, and every pretrained tool in the pipeline. This page lists what each part of our build is licensed under, where the traps are, and the consent a real voice needs.
+
+## What licenses does a TTS pipeline inherit?
+
+A TTS pipeline inherits the license of every dataset, pretrained model and runtime it uses, so check each one; the terms that bind you depend on what you ship. Here is our build, each license checked at its source:
+
+| Component                        | Role in our build                          | License (as stated by the source)                                                                                  |
+| -------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| LJSpeech 1.1                     | Training audio and transcripts             | Public domain ([dataset page](https://keithito.com/LJ-Speech-Dataset/))                                            |
+| MMS_FA (torchaudio)              | Forced aligner for durations and filtering | CC-BY-NC 4.0 ([torchaudio docs](https://docs.pytorch.org/audio/stable/generated/torchaudio.pipelines.MMS_FA.html)) |
+| speechbrain/tts-hifigan-ljspeech | Pretrained vocoder                         | Apache-2.0 (model card)                                                                                            |
+| Our acoustic model               | Trained from random weights by us          | Ours                                                                                                               |
+
+Look at the second row. The torchaudio documentation states that the MMS_FA weights are distributed under a CC-BY-NC 4.0 license by the original Meta authors. NC means non-commercial. We used it to compute the per-letter durations our model trains on and to filter out bad clips. Whether using a non-commercial model's outputs during data preparation affects a commercial model downstream is a legal question we are not going to answer for you. What we can say is that it is a question, and it only surfaces if you read the license of the tools, not just the data.
+
+For a commercial build, the clean options are an aligner whose weights carry a permissive license, or one you train yourself on data you own.
+
+## Why do Piper voices carry two licenses?
+
+Piper voices carry two licenses because the program and the voice are separate works, released separately. The current piper-tts package lives at [OHF-voice/piper1-gpl](https://github.com/OHF-voice/piper1-gpl) and is licensed GPL-3.0-or-later. The voices live in the rhasspy/piper-voices repository on Hugging Face, which is MIT.
+
+Inside that repository each voice has its own card. The [LJSpeech medium voice card](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/ljspeech/medium/MODEL_CARD) names LJSpeech as the dataset and lists it as public domain, and says the voice was trained from scratch for 1,000 epochs.
+
+So one "model" in your product breaks down into three answers:
+
+- **The runtime** (GPL-3.0-or-later) matters if you distribute it, for example inside an app or an on-prem appliance. Under common readings of the GPL, its obligations attach when you distribute the program; check with counsel for your case.
+- **The weights** (MIT) are permissive; keep the notice.
+- **The training data** (public domain for LJSpeech) is what the weights were learned from.
+
+A voice trained on a research-only corpus could sit in an MIT-licensed repository and still be unusable for your product. The repository license covers the files, and the card tells you what the voice was trained on. Read both. We compare that Piper voice against our tiny model in [end-to-end TTS with VITS](/learn/100x/tts/end-to-end-tts-vits).
+
+## What do dataset licenses actually restrict?
+
+Dataset licenses restrict what you may do with the audio and anything derived from it. Public speech corpora range from public domain, through attribution licenses, to research-only and non-commercial terms.
+
+- **Public domain** (LJSpeech): no conditions.
+- **Attribution** licenses: use allowed, credit required. Keep the attribution with the model.
+- **Non-commercial or research-only**: a model trained on it should not back a commercial product.
+
+If you mix corpora, check each corpus's terms; which ones bind the model depends on what you ship and how. The [LJSpeech lesson](/learn/100x/tts/ljspeech-dataset) describes what we trained on; the table above is everything else.
+
+## What consent does a voice need?
+
+A voice needs the speaker's informed, written consent for the specific use: training a synthetic voice, deploying it commercially, and modifying what it says. A voice identifies a person in a way text does not, so this layer sits on top of any dataset license.
+
+That holds with full force when the voice belongs to a founder, an employee or a brand voice actor. A recording contract signed before synthetic voices were practical usually does not mention them. Treat that as unclear, and get fresh consent before training.
+
+Incidental data is the other trap. Real call recordings carry names, account numbers and addresses spoken aloud. Using production audio as training data needs a lawful basis for that use and a pass to remove personal information, and regulated industries add their own rules. [Voice cloning vs fine-tuning](/learn/100x/tts/voice-cloning-vs-fine-tuning) comes back to consent for cloned voices.
+
+<Pull>
+  For every clip and every component, you should be able to name where it came from and what license
+  or consent covers commercial synthesis. If any answer is unclear, it stays out.
+</Pull>
+
+This is the one part of the pipeline that retraining cannot fix. A mislabelled clip can be filtered out and the model trained again; a model already shipped on data you had no right to use cannot be quietly corrected. Keep a provenance record from the first clip: source, license, consent document, date.
+
+None of this is legal advice. It is the checklist we run before a model ships, and the point where a lawyer takes over.
+
+Next: [the data manifest](/learn/100x/tts/tts-data-manifest), the file where that provenance and every training clip get written down one line at a time.

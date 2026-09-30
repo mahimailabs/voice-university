@@ -1,0 +1,108 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 1
+unit: 1
+unitTitle: 'Sound as numbers'
+title: 'What is audio sampling? Sample rate, Nyquist and bit depth for TTS'
+navTitle: 'Audio sampling'
+summary: 'The median LJSpeech clip is 149,149 numbers. Sample rate, Nyquist and bit depth decide what they can hold, and one wrong rate breaks a TTS pipeline without an error.'
+seoTitle: 'What Is Audio Sampling? Sample Rate for TTS | Mahimai'
+keywords:
+  - 'audio sampling'
+  - 'sample rate'
+  - 'Nyquist frequency'
+  - 'bit depth'
+  - 'sample rate mismatch'
+  - '22050 Hz'
+proficiency: 'Beginner'
+faq:
+  - q: 'What sample rate does LJSpeech use?'
+    a: 'We checked all 13,100 LJSpeech 1.1 clips: every one is mono at 22,050 Hz. The dataset page gives the format as 16-bit PCM. At that rate the highest frequency the audio can represent is 11,025 Hz, half the sample rate.'
+  - q: 'What happens if a TTS pipeline uses the wrong sample rate?'
+    a: 'Usually nothing crashes. The same array of samples is read as a different duration, so audio plays too slow or too fast and at the wrong pitch, and a mel spectrogram computed at the wrong rate puts energy in the wrong filters. Check the rate at every boundary: loading, feature extraction, the vocoder and playback.'
+  - q: 'Why do machine learning pipelines convert audio to float32?'
+    a: 'Files store integers (16-bit PCM in LJSpeech), but models do arithmetic in floating point. Loaders such as soundfile return float32 values between -1.0 and 1.0, which keeps the scale the same whatever the bit depth of the file.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Practice from '../../../components/course/Practice.astro';
+import Figure from '../../../components/course/Figure.astro';
+import SamplingFigure from '../../../components/course/figures/SamplingFigure.astro';
+import YouTube from '../../../components/course/YouTube.astro';
+
+The median clip in LJSpeech, the dataset we train on in this build, lasts 6.76 seconds and holds 149,149 numbers. Every clip is a one-dimensional array like that one. The text-to-speech model we build later never sees anything else: it has to produce a sequence of numbers that, played back at the right speed, a listener hears as speech.
+
+By the end of this lesson you will know what those numbers are, which two settings (sample rate and bit depth) decide what they can hold, and how to catch the sample-rate bug that fails without an error.
+
+## What is audio sampling?
+
+Audio sampling is measuring a continuous sound signal at fixed, evenly spaced moments and storing each measurement as a number. A microphone turns air pressure into a voltage; an analogue-to-digital converter reads that voltage many thousands of times a second.
+
+<YouTube id="J67fHI274Ko" title="What audio actually is, in 90 seconds" />
+
+The **sample rate** is how many readings per second. LJSpeech ships at 22,050 Hz: 22,050 numbers for every second of speech. We measured all 13,100 clips with `measure_corpus.py` and every one of them reports the same rate and a single channel.
+
+<Figure label="Sampling">
+  <SamplingFigure />
+</Figure>
+
+So the arithmetic for the median clip is short: 6.76 s × 22,050 samples per second ≈ 149,149 samples. The shortest clip in the corpus is 1.11 s (about 24,500 samples) and the longest 10.10 s (about 222,600).
+
+## What does the Nyquist limit mean for speech?
+
+The Nyquist limit is half the sample rate, and it is the highest frequency a sampled signal can represent. Anything above it cannot be stored; if it reaches the converter unfiltered, it folds back down as a false lower frequency (aliasing).
+
+For LJSpeech that ceiling is 11,025 Hz. How much of the speech actually lives up there? We checked on one clip, LJ001-0009 ("Printing, then, for our purpose, may be considered as the art of making books by means of movable types."). Only 1.9% of its energy sits above 8 kHz, and 10.5% sits above 4 kHz. One clip is one clip, but the shape is typical of speech: most energy is low, and the high band carries a small share of energy that matters for consonants.
+
+That high band is where the trade-offs happen. The vocoder we use later only models frequencies up to 8,000 Hz, and a narrowband phone call cuts everything above 4,000 Hz. [Telephone audio for TTS](/learn/100x/tts/telephone-audio-for-tts) covers what that costs.
+
+## What does bit depth do?
+
+Bit depth is how precisely each sample is stored. LJSpeech is [16-bit PCM](https://keithito.com/LJ-Speech-Dataset/), so each sample is one of 2^16 = 65,536 integer levels. The rounding to the nearest level adds a small noise floor; more bits push that floor lower.
+
+Models do not work in integers. Loaders convert to 32-bit floating point between -1.0 and 1.0, which is what our scripts do on every read:
+
+```python
+# measure_corpus.py
+audio, sr = sf.read(path, dtype="float32")
+dur = len(audio) / sr
+peak = float(np.max(np.abs(audio)))
+```
+
+Amplitude is usually quoted in decibels relative to full scale (dBFS). 0 dBFS is the largest value a file can hold, so real audio reads negative. The median LJSpeech clip peaks at -4.9 dBFS, a little below the ceiling. Two of the 13,100 clips touch |x| ≥ 0.999, one sample each, which is how we count clipping. The [LJSpeech lesson](/learn/100x/tts/ljspeech-dataset) goes through the rest of those corpus measurements.
+
+## Why does a sample rate mismatch break TTS silently?
+
+A sample rate mismatch breaks TTS silently because a waveform file is only an array plus one number that says how fast to play it. Get that number wrong and every tool downstream still runs; the output is just wrong.
+
+Take the median clip and play its 149,149 samples at 16,000 Hz instead of 22,050 Hz. It now lasts 149,149 / 16,000 = 9.32 s instead of 6.76 s, and every frequency drops by the same factor of 0.73, about five and a half semitones. No exception is raised.
+
+Feature extraction hides the same bug better. The mel spectrogram we build in the [next lesson](/learn/100x/tts/mel-spectrogram) needs to know the sample rate to decide which FFT bins fall into which mel filter. torchaudio's [`MelSpectrogram` transform](https://docs.pytorch.org/audio/stable/generated/torchaudio.transforms.MelSpectrogram.html) defaults to `sample_rate=16000`. Our vocoder was trained on 22,050 Hz audio. Call the transform with its defaults on an LJSpeech clip and every filter lands on the wrong frequencies, and the vocoder then renders something that is not the input.
+
+That is why the one place our code states the rate is a shared constant, used by every script:
+
+```python
+# common.py
+SR = 22050
+HOP = 256
+```
+
+And the vocoder demo refuses to run on anything else:
+
+```python
+# vocoder_demo.py
+audio, sr = sf.read(wav_path, dtype="float32")
+assert sr == SR
+```
+
+The alignment step is the one place we resample on purpose: the MMS aligner expects 16 kHz, so `align.py` converts a copy with `torchaudio.functional.resample` and then converts its frame times back to 22,050 Hz units. The original audio is never overwritten.
+
+<Practice label="Check the rate at every boundary">
+  Write down the sample rate each stage expects: loader, feature extractor, model, vocoder, player.
+  Then put an assertion at each boundary. It costs one line per stage and turns a silent failure
+  into a stack trace.
+</Practice>
+
+Next: [the mel spectrogram](/learn/100x/tts/mel-spectrogram), the picture of those 149,149 numbers that our model will actually learn to draw.

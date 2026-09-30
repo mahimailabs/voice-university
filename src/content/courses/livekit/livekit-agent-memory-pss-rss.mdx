@@ -1,0 +1,122 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 11
+unit: 3
+unitTitle: 'Agent workers in production'
+title: 'LiveKit agent memory per call: PSS vs RSS in process pools'
+navTitle: 'Memory per call: PSS vs RSS'
+summary: 'RSS said 404 MB per call and pointed us at memory-optimised machines. PSS said 122 MB. Why a forkserver pool fools RSS, and a script that measures it right.'
+seoTitle: 'LiveKit Agent Memory per Call: PSS vs RSS | Mahimai'
+keywords:
+  - 'LiveKit agent memory'
+  - 'PSS vs RSS'
+  - 'forkserver memory'
+  - 'smaps_rollup PSS'
+  - 'memory per call'
+proficiency: 'Intermediate'
+faq:
+  - q: 'How much memory does a LiveKit agent call use?'
+    a: 'On the Python worker we measured, one concurrent call cost 122 MB of PSS on top of an idle baseline of 1,549 MB across 11 processes. Reading RSS instead gave 404 MB per call, more than three times too high, because RSS counts pages the job processes share with the forkserver parent.'
+  - q: 'What is the difference between PSS and RSS?'
+    a: 'RSS counts every resident page a process can see, including pages shared with other processes. PSS divides each shared page by the number of processes sharing it, so summing PSS across a process pool counts shared memory once.'
+  - q: 'How do I measure PSS for a whole process tree on Linux?'
+    a: 'Read the Pss line from /proc/PID/smaps_rollup for the parent process and every descendant, then add them up. Sample that total against active call count over a ramp and take the slope to get the marginal cost per call.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
+import Practice from '../../../components/course/Practice.astro';
+
+Each job process on our Python agent worker showed roughly 400 MB of RSS. One process per concurrent call, 150 concurrent calls: 60 GB. That meant several machines, and it meant shopping for memory-optimised ones.
+
+The real figure was 122 MB per call. It changed which instance family we bought.
+
+By the end of this page you'll know why RSS overcounts any forked process pool, how to measure proportional set size (PSS) across a whole worker tree with one script, and how to turn samples into a per-call slope you can size a fleet from.
+
+## Why RSS overcounts forked workers
+
+RSS charges every process for every resident page it can see, including pages it shares with its siblings. In a forked pool most pages are shared, so summing RSS counts the same memory once per process.
+
+The agent worker pool uses a forkserver. One parent imports the heavy libraries once. Every job process is then forked from it and shares those pages copy-on-write (Python's [multiprocessing start methods](https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods) describe the forkserver model). Look at any one job process and RSS reports the full weight of those libraries. Sum RSS across a pool of forty and you have counted the same memory forty times.
+
+That is where "roughly 400 MB per process" came from. Most of it was the parent's pages, seen through each child.
+
+<CourseFigure
+  id="lk-forkserver-pss"
+  title="A forkserver parent holding the shared libraries forks several job processes that share those pages copy-on-write. RSS counts the shared pages in every process, 404 MB per call; PSS divides them between sharers, 122 MB per call."
+>
+  Every job process maps the same library pages from the parent. RSS charges each process for all of
+  them, so we read 404 MB per call; PSS splits them between the sharers and gives 122 MB.
+</CourseFigure>
+
+## What PSS measures instead
+
+PSS divides each shared page by the number of processes sharing it. Add up PSS across the pool and every page is counted exactly once, which makes it the number that answers "what does one more call cost?"
+
+The kernel exposes it per process in `/proc/PID/smaps_rollup`, right next to the `Rss` line. The [kernel's proc documentation](https://docs.kernel.org/filesystems/proc.html) defines it as "the count of pages it has in memory, where each page is divided by the number of processes sharing it." `smaps_rollup` sums the per-mapping values from `smaps` into one block, so you read one line per process instead of parsing hundreds of mappings.
+
+## How to sum PSS across a worker process tree
+
+Walk the tree from the worker's main PID, read `Pss` and `Rss` from each process, and add them up. The forkserver and every job process are descendants of the worker, so a recursive child walk catches all of them.
+
+```bash
+#!/usr/bin/env bash
+# usage: pss-tree.sh <worker pid>   (run as the worker's user, or with sudo)
+root=$1
+descendants() { local p; for p in $(pgrep -P "$1"); do echo "$p"; descendants "$p"; done; }
+for pid in "$root" $(descendants "$root"); do
+  fds=$(ls "/proc/$pid/fd" 2>/dev/null | wc -l)
+  awk -v fds="$fds" '/^Rss:/ {r=$2} /^Pss:/ {p=$2} END {print r, p, fds}' "/proc/$pid/smaps_rollup"
+done | awk '{n++; rss+=$1; pss+=$2; fds+=$3}
+  END {printf "%d processes  RSS %.0f MB  PSS %.0f MB  fds %d\n", n, rss/1024, pss/1024, fds}'
+```
+
+The values in `smaps_rollup` are in kB, hence the divide by 1024. The script also counts open file descriptors per process, because you will want that number too (more on it below). Run it on an idle worker and you get the baseline. Run it under load and the gap between the RSS and PSS columns shows you how much of the pool is shared.
+
+## Measure the slope across a ramp
+
+One reading mixes the fixed baseline with the marginal cost of calls. Sample repeatedly while the call count changes and fit a line: the slope is the per-call cost and the intercept is the baseline.
+
+We sampled every ten seconds through a ramp to 40 concurrent calls, logged `active_calls,pss_mb` pairs from our own call counter and the script above, and fitted them by least squares against active call count. Python's standard library does the fit:
+
+```python
+import csv, statistics
+
+calls, pss_mb = zip(*((float(c), float(m)) for c, m in csv.reader(open("samples.csv"))))
+fit = statistics.linear_regression(calls, pss_mb)
+print(f"{fit.slope:.0f} MB per call, {fit.intercept:.0f} MB baseline")
+```
+
+Here is what came out:
+
+| Metric                                | Value                      |
+| ------------------------------------- | -------------------------- |
+| Idle baseline                         | 11 processes, PSS 1,549 MB |
+| Per concurrent call, PSS              | 122 MB                     |
+| Per concurrent call, RSS              | 404 MB                     |
+| Per concurrent call, file descriptors | 38.4                       |
+
+The same slope method applies to every resource in a voice fleet. [Per-call resource accounting](/learn/100x/livekit/per-call-resource-accounting) puts the memory figure next to ports and descriptors.
+
+## What the right number changed
+
+At 122 MB per call, 40 concurrent calls cost 4.9 GB against 30 GB available. Memory stopped being the constraint. CPU became it.
+
+So the machine to buy was compute-optimised rather than memory-optimised. The RSS figure pointed at the opposite family, and at several more machines than we needed. That is the real cost of the wrong metric: it does not stay in a report, it turns into a purchase order. The per-call slopes feed straight into the [capacity model](/learn/100x/livekit/voice-capacity-model) and the [cost per minute](/learn/100x/livekit/self-hosted-livekit-cost) later on.
+
+## File descriptors: the number nobody asked for
+
+The descriptor slope mattered as much as memory. At 38.4 per call, a hundred concurrent calls want roughly 3,840 descriptors, and the systemd default is 1,024.
+
+So the service file needed its descriptor limit raised. The directive is `LimitNOFILE=` in the `[Service]` section (see [systemd.exec](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html)). Size it from the measurement: descriptors per call times your peak concurrency, plus headroom for the baseline.
+
+Now the limit has a measurement behind it.
+
+<Practice label="Before you size a fleet">
+  Run the script on an idle worker, then sample it through a ramp and fit the slope. If your
+  per-call figure came from RSS on a forked pool, throw it away and measure again with PSS.
+</Practice>
+
+Next: the job process that [stayed resident at 439 MB after the caller hung up](/learn/100x/livekit/livekit-agent-shutdown-leak), and why the leak showed up on a different machine.

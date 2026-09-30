@@ -1,0 +1,178 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 4
+unit: 1
+unitTitle: 'Foundations'
+title: 'LiveKit voice agent tutorial: run your first agent locally'
+navTitle: 'Your first voice agent'
+summary: 'One laptop, one dev server, a 20-line Python file, and an agent you can talk to. Every line maps to a production concept, and the same file ships to the fleet unchanged.'
+seoTitle: 'LiveKit Voice Agent Tutorial: Run One Locally | Mahimai'
+keywords:
+  - 'LiveKit voice agent tutorial'
+  - 'LiveKit agents Python'
+  - 'livekit-server --dev'
+  - 'LiveKit agent console mode'
+proficiency: 'Beginner'
+faq:
+  - q: 'Can you run a LiveKit voice agent locally?'
+    a: 'Yes. Run livekit-server --dev in one terminal and your agent on the agents framework in another. The code you write locally is the same code that runs in production; only the infrastructure underneath changes.'
+  - q: 'What is the difference between console mode and dev mode in LiveKit Agents?'
+    a: 'Console mode runs a single session in your terminal using your microphone and speakers, without connecting to a LiveKit server. Dev mode registers the agent with a real LiveKit server, reloads on code changes, and gets dispatched into rooms like a production worker.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+You have API keys for a speech-to-text provider, an LLM and a text-to-speech voice. You want to hear an agent answer you, today, on your own machine.
+
+That takes two processes and one Python file of about 20 lines. By the end of this page you will have talked to the agent twice (once in your terminal, once through a real LiveKit room), and you will know which production concept each line of the file stands for.
+
+## What you need before you start
+
+Three things, all free to set up:
+
+- **Python 3.10 or newer** and the [uv](https://docs.astral.sh/uv/) package manager, which LiveKit's own quickstart uses.
+- **The LiveKit server and CLI** on your machine. Step 1 installs both.
+- **API keys for three providers**: one each for [STT](/learn/components/speech-to-text), LLM and [TTS](/learn/components/text-to-speech). The example below uses the three providers from LiveKit's own plugin example so every line can be checked against the docs. Swap any of them for the provider you prefer; each is one plugin and one environment variable.
+
+The local server here is self-hosted, so the agent calls providers through plugins with your own keys (LiveKit Cloud's built-in model access is not available against a local server).
+
+## Step by step: run a LiveKit voice agent locally
+
+### 1. Install the server and the CLI
+
+On macOS:
+
+```bash
+brew install livekit livekit-cli
+```
+
+For Linux, use the install scripts:
+
+```bash
+curl -sSL https://get.livekit.io | bash       # livekit-server
+curl -sSL https://get.livekit.io/cli | bash   # lk, the LiveKit CLI
+```
+
+### 2. Start the server in dev mode
+
+```bash
+livekit-server --dev
+```
+
+Dev mode starts a single node with a fixed key pair, `devkey` and `secret`, and binds the signalling port to `127.0.0.1:7880`. Leave this terminal running. The [local setup guide](https://docs.livekit.io/transport/self-hosting/local/) has the Windows download.
+
+### 3. Create the project and install the agents framework
+
+In a second terminal:
+
+```bash
+uv init voice-agent
+cd voice-agent
+uv add "livekit-agents[assemblyai,cartesia,openai]~=1.8" python-dotenv
+```
+
+Each name in the brackets is one provider plugin, so changing provider means changing that list and the matching import.
+
+### 4. Put the credentials in `.env.local`
+
+```bash
+LIVEKIT_URL=ws://localhost:7880
+LIVEKIT_API_KEY=devkey
+LIVEKIT_API_SECRET=secret
+
+ASSEMBLYAI_API_KEY=your-key
+OPENAI_API_KEY=your-key
+CARTESIA_API_KEY=your-key
+```
+
+The first three point the agent at your dev server, and when you move to [LiveKit Cloud or your own EC2 fleet](/learn/100x/livekit/livekit-cloud-vs-self-hosted), these three values are the only thing that changes.
+
+### 5. Write `agent.py`
+
+```python
+from dotenv import load_dotenv
+
+from livekit import agents
+from livekit.agents import Agent, AgentServer, AgentSession
+from livekit.plugins import assemblyai, cartesia, openai
+
+load_dotenv(".env.local")
+
+server = AgentServer()
+
+
+@server.rtc_session()
+async def entrypoint(ctx: agents.JobContext):
+    session = AgentSession(
+        stt=assemblyai.STT(language="en"),
+        llm=openai.responses.LLM(model="gpt-5.3-chat-latest"),
+        tts=cartesia.TTS(model="sonic-3", voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"),
+    )
+    await session.start(
+        room=ctx.room,
+        agent=Agent(instructions="You are a concise, helpful voice assistant."),
+    )
+
+
+if __name__ == "__main__":
+    agents.cli.run_app(server)
+```
+
+The model names and the voice ID are the ones in LiveKit's plugin example, but you can use any model or voice your provider account offers.
+
+### 6. Talk to it in your terminal
+
+```bash
+lk agent console
+```
+
+Console mode runs one session through your microphone and speakers without touching the LiveKit server at all, which makes it the fastest loop you will get: edit, restart, speak. Press `Ctrl+T` to switch to typing if you are somewhere you cannot talk.
+
+### 7. Talk to it through a real room
+
+Now run it the way production does:
+
+```bash
+lk agent dev
+```
+
+(`uv run agent.py dev` does the same thing without the CLI wrapper.) The agent registers with your dev server and waits, reloading whenever you save the file.
+
+Create a token for yourself, then join a room from the browser:
+
+```bash
+lk token create --api-key devkey --api-secret secret \
+  --join --room my-first-room --identity user1 --valid-for 24h
+```
+
+Open [example.livekit.io](https://example.livekit.io), enter `ws://localhost:7880` and the token, and connect. The room is created when you join, the server dispatches a job, and the agent joins a moment later. Say hello.
+
+## What each line of the agent does
+
+Every line in that file is a production concept in miniature. Here is the mapping.
+
+- **`AgentServer()`** is the worker. On start it registers with the LiveKit server and reports that it can take jobs. Current releases call it an agent server; we keep calling it a worker, which is what the lifecycle and load lessons count.
+- **`@server.rtc_session()`** marks your entrypoint. Because it has no `agent_name`, the server uses automatic dispatch and sends this agent into every new room. That is ideal on a laptop and something you will change for production, where LiveKit's [dispatch guide](https://docs.livekit.io/agents/server/agent-dispatch/) recommends explicit dispatch.
+- **`entrypoint(ctx)`** runs once per job, in a fresh process holding the room. One call, one process. That process is what [the memory lesson](/learn/100x/livekit/livekit-agent-memory-pss-rss) measures and what [the shutdown leak](/learn/100x/livekit/livekit-agent-shutdown-leak) keeps alive by accident.
+- **`AgentSession(...)`** wires the audio pipeline: it subscribes to the caller's track, runs STT, LLM and TTS, and publishes the agent's voice back into the room as its own track.
+- **`agents.cli.run_app(server)`** is what gives you `console`, `dev` and `start` from one file. The [startup modes reference](https://docs.livekit.io/agents/server/startup-modes/) lists every flag.
+
+The round trip you hear, from the end of your sentence to the first syllable of the reply, is your [latency budget](/tools/latency-calculator). On a laptop it is whatever it is. In production you defend it.
+
+## Five minutes of trying to break it
+
+Once it answers, stop being polite. Do these four things, in order:
+
+1. Talk to it normally for a few turns.
+2. Interrupt it mid-sentence.
+3. Go silent for ten seconds.
+4. Talk over it continuously.
+
+Five minutes of adversarial poking teaches you more about turn detection and interruption handling than an afternoon of reading. It also calibrates the production behaviour you are aiming for, so you notice when a later change makes it worse.
+
+## What changes when you deploy it
+
+Nothing in this file. Everything you deploy in [unit 2](/learn/100x/livekit#unit-2) runs this exact code, unchanged. That is the framework's design: the gap between the laptop demo and the production fleet is entirely in the infrastructure underneath. Your dev server is one process on loopback. Production is an SFU with a public IP, a UDP port range sized as a capacity decision, TURN, Redis and a SIP service.
+
+Next: [deploy the LiveKit server on AWS EC2](/learn/100x/livekit/self-host-livekit-aws), starting with the one port rule that decides whether media flows at all.

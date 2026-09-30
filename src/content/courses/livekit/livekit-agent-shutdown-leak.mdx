@@ -1,0 +1,107 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 12
+unit: 3
+unitTitle: 'Agent workers in production'
+title: 'LiveKit agent shutdown: returning from the entrypoint does not end the job'
+navTitle: 'Graceful shutdown and leaked jobs'
+summary: 'Seventy-five seconds after the caller hung up, the job process still held 439 MB. What the framework waits for, the one-line ctx.shutdown fix, and where it leaks.'
+seoTitle: 'LiveKit Agent Shutdown: Why Returning Is Not Enough | Mahimai'
+keywords:
+  - 'LiveKit agent shutdown'
+  - 'ctx.shutdown'
+  - 'LiveKit job leak'
+  - 'LiveKit job process not exiting'
+proficiency: 'Intermediate'
+faq:
+  - q: 'Why does my LiveKit agent job process stay alive after the call ends?'
+    a: 'The job process awaits a shutdown future that is resolved by connecting to the room, by an explicit shutdown call, or by the job crashing. Returning cleanly from the entrypoint resolves none of them, so a worker that never connects to the room waits forever.'
+  - q: 'How do I end a LiveKit agent job explicitly?'
+    a: 'Call ctx.shutdown(reason="call ended") on the JobContext when your call logic is finished. It is one line, and it is what lets the job report completion so both the agent host and the media server release what they allocated for it.'
+  - q: 'Where does a leaked agent job show up?'
+    a: 'On two machines. The job process stays resident on the agent host, and the per-job handler the media server allocated at assignment is never released, because the job finished report is never sent.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
+
+We wrote an agent worker, tested it end to end, and shipped a commit message claiming it reported job completion correctly when the entrypoint returned.
+
+Then we watched the process list. Seventy-five seconds after the caller hung up, the job process was still resident, holding 439 MB.
+
+This page covers what the framework actually waits for before a job ends, the one-line fix, and why the leak you should worry about is on a machine you are probably not watching.
+
+## What the framework waits for before a job ends
+
+A job process does not exit when your entrypoint returns. It exits when a shutdown future resolves, and returning is not one of the things that resolves it.
+
+We found this by reading the framework internals. The job process sits on one line:
+
+```python
+shutdown_info = await self._shutdown_fut
+```
+
+That future is resolved by connecting to the room, by an explicit shutdown call, or by the job crashing. Returning cleanly from the entrypoint resolves nothing.
+
+Our worker deliberately never connected. Another library owned the room connection, and connecting twice would have put a second participant in every call, so none of the resolution paths could fire. The process waited forever for a signal that was never going to arrive.
+
+If your agent uses the standard `AgentSession` path, it connects to the room for you, and you may never hit this. The trap is any design where something else owns the connection. The [job lifecycle docs](https://docs.livekit.io/agents/server/job/) describe the connected path and the shutdown hooks that run after it.
+
+## The one-line fix: ctx.shutdown
+
+Tell the framework the job is over. When your call logic finishes, call shutdown on the job context:
+
+```python
+ctx.shutdown(reason="call ended")
+```
+
+That resolves the future, the job reports finished, and the process exits (the method is `JobContext.shutdown` in the [Python agents reference](https://docs.livekit.io/reference/python/livekit/agents/index.html)). Put it on every exit path of your call logic, including the error path, since a crash is the only other thing that will end the job for you.
+
+## Why the leak shows up on the media server
+
+The leaked resource was not only the process on the agent host: the media server allocates a per-job handler when it assigns work and releases it when the worker reports the job finished.
+
+An agent that never reports completion leaks on the media server too: a different machine, owned by a different team, watched on a different dashboard. You can stare at the agent host all day and see nothing wrong with the agent host.
+
+<CourseFigure
+  id="lk-leak-two-hosts"
+  title="Two machines. On the agent host the entrypoint returned without ctx.shutdown and the job process stays resident at 439 MB. On the media server the per-job handler allocated at assignment is never released, because the job finished report is never sent."
+>
+  The broken link is the dashed report. Without it, the job leaks on both machines, and the half on
+  the media server shows up on a dashboard we were not watching.
+</CourseFigure>
+
+This is the completion step of the [worker lifecycle](/learn/100x/livekit/livekit-agent-worker-lifecycle) failing. The server trusts what the worker reports, so a report that never arrives means a job that never ends, as far as the server knows. A different unreported counter stops dispatch altogether in the [next lesson](/learn/100x/livekit/livekit-worker-load-threshold).
+
+## How to catch it: watch the process table
+
+Every metric we emitted said the call completed cleanly, and our own counters ran in a `finally` block that executed exactly as intended. The counters were correct. The process was still there.
+
+<Pull>
+  Watch the process table, not the logs. `ps` found in one command what seven green metrics had
+  missed.
+</Pull>
+
+Here is the check we now run after a test call: list every descendant of the worker with its age and resident memory:
+
+```bash
+root=<worker pid>
+descendants() { local p; for p in $(pgrep -P "$1"); do echo "$p"; descendants "$p"; done; }
+ps -o pid,etimes,rss,comm -p "$(descendants "$root" | paste -sd,)"
+```
+
+`etimes` is seconds since the process started and `rss` is in KiB. The worker keeps a few idle, pre-warmed processes on purpose, so do not expect zero: expect the count to fall back to the idle count once calls end. A process that keeps ageing after its call hung up is a leaked job. For how much memory each of those processes really costs, read RSS with care: [PSS is the number to size from](/learn/100x/livekit/livekit-agent-memory-pss-rss).
+
+## Before you write "handled" in a commit message
+
+We wrote that the job was finalised correctly because the code looked like it should be. It was not. A test against real infrastructure found that out, and by then the claim was already in the history.
+
+1. Place a real call through the agent and hang up.
+2. Run the `ps` check above and confirm the job process exits.
+3. Confirm the media server released the job on its side too.
+4. Only then describe the lifecycle in the commit.
+
+A lifecycle claim needs something that observed the lifecycle, and the same habit, applied at fleet scale, is what [per-call resource accounting](/learn/100x/livekit/per-call-resource-accounting) formalises.

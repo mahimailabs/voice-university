@@ -1,0 +1,98 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 3
+unit: 1
+unitTitle: 'Sound as numbers'
+title: 'Why TTS needs a vocoder: phase, copy synthesis and the quality ceiling'
+navTitle: 'Why a vocoder'
+summary: 'We ran a real clip through its own mel spectrogram and a pretrained HiFi-GAN. It landed 12.3 dB from the original by log-spectral distance: our ceiling.'
+seoTitle: 'Why TTS Needs a Vocoder: Phase and Copy Synthesis | Mahimai'
+keywords:
+  - 'vocoder'
+  - 'why TTS needs a vocoder'
+  - 'copy synthesis'
+  - 'mel spectrogram phase'
+  - 'Griffin-Lim'
+  - 'HiFi-GAN'
+proficiency: 'Beginner'
+faq:
+  - q: 'Why can a mel spectrogram not be played directly?'
+    a: 'A mel spectrogram keeps only how much energy sits in each of 80 frequency bands per frame. It discards phase, the timing of each frequency component, and it merges hundreds of FFT bins into 80 bands. A waveform needs both, so something has to estimate the missing information. That something is the vocoder.'
+  - q: 'What is copy synthesis in TTS?'
+    a: 'Copy synthesis means taking a real recording, computing its mel spectrogram with the vocoder recipe, and running that through the vocoder. The acoustic model is left out entirely, so the result is the best the vocoder can do with a perfect mel spectrogram. It is the ceiling for any acoustic model you pair with that vocoder.'
+  - q: 'Did you train the HiFi-GAN vocoder yourselves?'
+    a: 'No. We used the pretrained speechbrain/tts-hifigan-ljspeech checkpoint, released under Apache-2.0 and trained on the same LJSpeech speaker. We trained the acoustic model from random weights; the vocoder only turns mel frames into audio and was never updated.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Figure from '../../../components/course/Figure.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import TtsPipeline from '../../../components/course/figures/TtsPipeline.astro';
+
+We took a real LJSpeech recording, computed its mel spectrogram with the exact vocoder recipe, and asked a pretrained HiFi-GAN to turn it back into audio. On that clip the output landed 12.3 dB from the original by log-spectral distance. Nothing was wrong with the mel. The gap is what a vocoder costs.
+
+This page explains where that gap comes from (phase), why the vocoder exists at all, and why the copy-synthesis number is the ceiling for every model we train later.
+
+## What does a mel spectrogram throw away?
+
+A mel spectrogram throws away phase and most of the frequency detail. It keeps only how much energy each of 80 bands holds in each 11.6 ms frame; it keeps nothing about where each wave sits in its cycle, and it has merged 513 FFT bins into those 80 bands.
+
+Phase is the timing of each frequency component. Two sine waves at the same frequency and loudness can start at different points in their cycle; the magnitude spectrum reports them as identical. Speech is a sum of many such components, and the waveform you hear depends on how their phases line up from one frame to the next. Drop phase and you can no longer add the pieces back together unambiguously.
+
+Frequency detail goes too. The [mel spectrogram lesson](/learn/100x/tts/mel-spectrogram) collapsed 513 bins to 80 and cut everything above 8,000 Hz. Going back from 80 numbers to 513 has no unique answer.
+
+## Why does a TTS model need a vocoder?
+
+A TTS model needs a vocoder because the acoustic model predicts a mel spectrogram, and a mel spectrogram cannot be played: something has to invent a plausible phase and fill in the missing detail to produce a waveform. That component is the vocoder.
+
+<Figure label="The two-stage pipeline">
+  <TtsPipeline />
+</Figure>
+
+The split is a division of labour. The acoustic model decides what is said and how long each sound lasts. The vocoder decides what that looks like as 22,050 samples per second. NVIDIA's NeMo toolkit describes cascaded TTS the same way, as text analysis, an acoustic model that "generates acoustic features" (it uses mel spectrograms), and a vocoder that "synthesizes waveform audios from acoustic features" ([NeMo TTS docs](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/intro.html)).
+
+There is a classical way to fill in phase without a neural network. Griffin-Lim starts from a guess and alternates forward and inverse short-time Fourier transforms until the phase is consistent with the magnitudes; [librosa's implementation](https://librosa.org/doc/0.11.0/generated/librosa.griffinlim.html) runs 32 iterations by default. It needs a full linear spectrogram, though, so from 80 mel bands you first have to approximate the 513 bins, and it has no learned idea of what speech looks like. We did not run it here.
+
+A neural vocoder learns the mapping from mel to waveform from real recordings. [HiFi-GAN](https://arxiv.org/abs/2010.05646) is a generative adversarial network that does this; its paper reports generating 22.05 kHz audio about 168 times faster than real time on a V100 GPU, and a smaller CPU variant at 13.4 times faster than real time. We use the [SpeechBrain LJSpeech checkpoint](https://huggingface.co/speechbrain/tts-hifigan-ljspeech), trained on the same speaker as our data and released under Apache-2.0.
+
+## What is copy synthesis, and why is it the ceiling?
+
+Copy synthesis is running a real recording's own mel spectrogram through the vocoder, with no acoustic model involved. It shows the best the vocoder can do when handed a perfect input, so it is the ceiling for any model that feeds that vocoder.
+
+Here are the key lines of `vocoder_demo.py`, lightly condensed: compute the mel with the shared recipe, decode it, and score the result against the original.
+
+```python
+# vocoder_demo.py
+voc = load_vocoder(cache)
+m = mel(torch.from_numpy(audio))  # the vocoder's own recipe
+with torch.inference_mode():
+    y = voc.decode_batch(m.unsqueeze(0)).squeeze().numpy()
+report["versions"]["copy_synthesis"] = {"lsd_db": lsd(audio, y)}
+```
+
+The score is log-spectral distance: for each frame, the root-mean-square difference in dB between the two log-magnitude spectra, averaged over all frames, with anything more than 80 dB below the loudest bin floored. Lower is closer. It is a signal measure on one clip; it says nothing about how natural a clip sounds to a listener.
+
+Our test clip is LJ001-0009, 7.55 s: "Printing, then, for our purpose, may be considered as the art of making books by means of movable types." Listen to both.
+
+<AudioSample src="/audio/tts/lj001-0009-original.mp3" label="Original recording">
+  LJ001-0009 from LJSpeech 1.1, 7.55 s.
+</AudioSample>
+
+<AudioSample src="/audio/tts/copy-synthesis.mp3" label="Copy synthesis">
+  The same clip, turned into its 80-band mel spectrogram and back by the pretrained HiFi-GAN. 12.3
+  dB log-spectral distance from the original on this clip.
+</AudioSample>
+
+Every model later in the build is measured against this pair. When our tiny acoustic model produces a mel, the vocoder output should not be expected to beat the second player, because that one already had a perfect mel.
+
+## How fast is the vocoder on a CPU?
+
+On a 4-core cloud container with no GPU, the vocoder ran at a real-time factor of 0.19 to 0.27 across the runs in our vocoder demo on this clip, so roughly four to five times faster than real time. The 0.27 was the first, cold run.
+
+That speed matters more than it looks. When we timed the full pipeline later, the vocoder took 96.4% of synthesis time and our acoustic model the other 3.6%. [What is a neural vocoder](/learn/100x/tts/what-is-a-neural-vocoder) picks that number apart.
+
+We did not train the vocoder, and that choice is deliberate. A vocoder learns from audio alone, with no text, so a public checkpoint trained on the same speaker covers that stage (at the 12.3 dB copy-synthesis cost measured above), and it lets our training budget go entirely to the part that turns text into sound. What "from scratch" means in this build is the acoustic model, trained from random weights in [unit 4](/learn/100x/tts/train-tts-model-from-scratch), with every stage wired together by us.
+
+Next: [telephone audio for TTS](/learn/100x/tts/telephone-audio-for-tts), where the copy-synthesised clip goes through an 8 kHz phone path. On the original recording, 10.5% of the energy sits above 4 kHz, and narrowband telephony removes that band.

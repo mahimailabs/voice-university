@@ -1,0 +1,141 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 20
+unit: 6
+unitTitle: 'Measure it'
+title: 'TTS eval harness: a held-out set, a hard set and one transcriber, with results'
+navTitle: 'Build an eval harness'
+summary: 'Our best checkpoint on held-out text (19.7% WER) was not the best on numbers, names and money. A 61-sentence harness, seven systems, one transcriber and the full table.'
+seoTitle: 'Build a TTS Eval Harness: Test Set and Results | Mahimai'
+keywords:
+  - 'TTS eval harness'
+  - 'TTS test set'
+  - 'text to speech regression testing'
+  - 'output WER Whisper'
+  - 'TTS checkpoint selection'
+proficiency: 'Advanced'
+faq:
+  - q: 'What should a TTS test set contain?'
+    a: 'Two parts. Held-out sentences in the style the model was trained on, never seen in training, to measure general quality. And a hard set of the inputs a voice agent actually gets wrong: order and account numbers, times, money, phone numbers, dates, abbreviations, unusual names and long sentences. Ours was 45 held-out LJSpeech transcripts (821 words) and 16 hard sentences (177 words).'
+  - q: 'Does the best TTS checkpoint depend on the test set?'
+    a: 'It can. In our harness, step 1,650 of our tiny model had the lowest held-out WER (19.7% against 22.9% for step 2,200), while step 2,200 had the lowest hard-set WER, with or without a text normaliser. Pick the checkpoint on the test set that looks like your traffic, and keep both numbers. Our hard-set scores carry caveats: the reference is built by the same normaliser, so it grades itself.'
+  - q: 'How do you gate TTS changes in CI?'
+    a: 'Store a baseline result per test set, rerun the harness on every model, voice or configuration change, and fail the build when WER on either set rises beyond a margin you set from run-to-run noise. Keep a transcriber floor row so a change of transcriber cannot pass as a change of voice. Our harness is not wired into CI; this is the design.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import Practice from '../../../components/course/Practice.astro';
+import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
+
+Step 1,650 of our tiny model scored 19.7% word error on held-out text and step 2,200 scored 22.9%. On sixteen sentences full of numbers, times and names, the order flipped: step 2,200 won. Which checkpoint is "best" depended on which test we ran.
+
+That is the case for an eval harness: a fixed test set, a scripted measurement and a stored result, so any change to a model, a voice or a setting produces a number you can compare. This page is the one we built and ran, with every result it produced.
+
+<CourseFigure
+  id="tts-eval-harness"
+  title="A fixed test set is synthesised by each system, transcribed by Whisper, and scored to one WER per system per set; results are compared with a stored baseline, which a CI gate would check."
+>
+  The measurement path is fixed; only the system under test changes. The baseline and the gate on
+  the right are a design: we ran the left side.
+</CourseFigure>
+
+## What goes in a TTS test set?
+
+Two parts: sentences like the training data that the model never saw, and sentences built to break it.
+
+**Held-out.** The 45 validation clips' transcripts, 821 words. The model never trained on them. They come from LJSpeech's normalised text column, so none contains a digit. This set measures general quality in the style the model learned.
+
+**Hard.** 16 sentences, 177 words, written for the inputs a voice agent gets wrong: an order number, an account number, times, money, a phone number, years, a dose, "Dr.", ordinals, a digit-by-digit code, two uncommon names and one long agent-style sentence. A few, as they sit in the harness:
+
+```python
+HARD = [
+    "your order number is 48213",
+    "the total comes to $129.50",
+    "call us on 555 0192 before 6",
+    "Dr. Okonkwo will see you at 10:30",
+    "please confirm the code 7 4 9 1",
+    "Saoirse and Nguyen both signed the form",
+    # ...
+]
+```
+
+The hard set is where the design work goes. Use your own traffic: the numbers, names and phrasings your agent will read, and the longest turn it will produce.
+
+## Which systems did we compare?
+
+Eight rows: seven system rows and one transcriber floor.
+
+- **The tiny model at steps 1,100, 1,650 and 2,200**, with text passed through our symbol set as-is. `encode` keeps letters, apostrophe and space, so digits are dropped.
+- **The same three checkpoints after a minimal normaliser** (num2words for numbers, ordinals, years, money and times, plus "Dr." to "doctor" and "%" to "percent").
+- **Piper en_US-ljspeech-medium**, which does its own text processing through espeak-ng. It was warmed up with one call before timing.
+- **The real LJSpeech recordings** of the held-out set, transcribed the same way, to measure the transcriber itself.
+
+One transcriber for everything: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) base.en, int8, beam size 5, on a 4-core cloud container with no GPU. Scoring is corpus-level, total errors over total reference words, so a long sentence counts for more than a short one:
+
+```python
+def agg(kind):
+    rs = [r for r in rows if r["kind"] == kind]
+    # corpus-level WER: total errors / total reference words
+    errs = sum(r["wer"] * r["ref_words"] for r in rs)
+    return {"n": len(rs), "words": sum(r["ref_words"] for r in rs), "wer": errs / sum(r["ref_words"] for r in rs)}
+```
+
+Each row's WER comes from [jiwer](https://github.com/jitsi/jiwer), after both reference and transcript pass through the same `words()` function: numbers to words, lowercase, punctuation stripped.
+
+## What did the harness measure?
+
+WER in percent. RTF is synthesis seconds divided by audio seconds over all 61 sentences.
+
+| System                                       | Held-out WER | Hard WER | RTF   |
+| -------------------------------------------- | ------------ | -------- | ----- |
+| Real LJSpeech recordings (transcriber floor) | 1.7          | n/a      | n/a   |
+| Piper en_US-ljspeech-medium                  | 4.0          | 8.5      | 0.037 |
+| tiny @ step 1,100                            | 26.3         | 66.1     | 0.272 |
+| tiny @ step 1,100 + normaliser               | 26.3         | 32.2     | 0.253 |
+| tiny @ step 1,650                            | 19.7         | 64.4     | 0.247 |
+| tiny @ step 1,650 + normaliser               | 19.7         | 35.6     | 0.248 |
+| tiny @ step 2,200                            | 22.9         | 59.3     | 0.238 |
+| tiny @ step 2,200 + normaliser               | 22.9         | 31.6     | 0.223 |
+
+Four readings:
+
+- **The floor.** Whisper gets 1.7% wrong on the real recordings, so that much of every system's WER is the transcriber.
+- **Piper against ours.** 4.0% held-out against our best 19.7%: about five times fewer errors. Piper's RTF of 0.037 here is about 27x faster than real time; on the three probe sentences in [end-to-end TTS](/learn/100x/tts/end-to-end-tts-vits) it was 0.052, about 19x. Our model sits at 0.22 to 0.27, with the vocoder taking most of that.
+- **The normaliser.** It changes nothing on held-out, which has no digits, and roughly halves the tiny model's hard-set WER (64.4% to 35.6% at step 1,650).
+- **Checkpoint choice.** Step 1,650 is best on held-out, which matches the earlier three-probe result. Step 2,200 is best on the hard set, raw (59.3%) and normalised (31.6%). If your traffic is mostly numbers, the ranking from clean text would pick the wrong checkpoint.
+
+<Pull>
+  The best checkpoint on clean text was not the best on numbers and names. Checkpoint choice depends
+  on the test set, so report both.
+</Pull>
+
+## What are the limits of hard-set WER?
+
+Three, and each applies to every hard-set number above.
+
+1. **The normaliser grades itself.** The reference text is built by the same normaliser that feeds the "+ normaliser" rows. It reads the phone number "555 0192" as "five hundred and fifty five one hundred and ninety two", and because the reference says the same, that reading scores as correct. A person expecting a phone number would mark it wrong. The same normaliser reads "0042" as "forty two", losing the leading zeros an account number needs.
+2. **Piper's "7491" is a scoring artifact.** Piper read "please confirm the code 7 4 9 1". Whisper wrote "7491", our scorer turned that into "seven thousand four hundred and ninety one", and Piper was charged 50% on a sentence it probably said correctly. We did not listen-verify every row.
+3. **Name spellings are partly Whisper's doing.** Piper's audio came back as "Akonko" (Okonkwo), "Sersha" (Saoirse) and "Nuyin" (Nguyen). A recogniser's spelling of rare names is part of that, and the transcript alone does not show that Piper mispronounced them.
+
+So the hard-set column overstates some errors and hides others. Read it as a ranking of our systems on these sentences, with the failures quoted in [hallucinations](/learn/100x/tts/tts-hallucinations) as the detail.
+
+## How would you gate TTS changes in CI?
+
+We did not wire this harness into CI. The design we would use:
+
+- **Store a baseline** per system: held-out WER, hard WER, RTF, and the per-sentence transcripts.
+- **Rerun on every change** to the model, the voice, the normaliser, the runtime or the transcriber.
+- **Fail on a margin, per set.** A rise in either set's WER beyond what reruns of the unchanged system produce. Set that margin from your own repeated runs; we ran each system once, so we have no noise figure to give you.
+- **Keep the floor row.** If the floor moves, the transcriber changed, and every other delta is suspect.
+- **Diff transcripts.** When a gate fails, the useful artifact is the sentence that changed, which the stored rows give you.
+
+<Practice label="Starting your own harness">
+  Take 40 or so held-out lines and write 15 or so sentences from your real traffic with numbers,
+  names and your longest turn. Run the real recordings through your transcriber first to get the
+  floor, then every candidate voice through the same code path.
+</Practice>
+
+Next: [TTFA vs TTFB](/learn/100x/tts/ttfa-vs-ttfb), the latency numbers this harness does not produce, and why.

@@ -1,0 +1,124 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 22
+unit: 6
+unitTitle: 'Measure it'
+title: 'TTS hallucinations: skipped words, repeats and silently dropped numbers'
+navTitle: 'TTS hallucinations'
+summary: 'Asked to say "your order number is 48213", our model made 1.74 seconds of audio and Whisper heard "your order number is." Skips, repeats and lost content.'
+seoTitle: 'TTS Hallucinations: Skips, Repeats, Lost Digits | Mahimai'
+keywords:
+  - 'TTS hallucinations'
+  - 'TTS skipping words'
+  - 'TTS repeating words'
+  - 'Magpie-TTS attention prior'
+  - 'TTS numbers dropped'
+proficiency: 'Intermediate'
+faq:
+  - q: 'What is a hallucination in text-to-speech?'
+    a: 'Output that does not match the input text: skipped words, repeated words or phrases, content that drifts out of alignment with the text, or sounds that were never in the text at all. It is most associated with autoregressive models that use attention to track their place in the text, but a pipeline can also lose content before the model sees it, as ours did with digits.'
+  - q: 'Why does my TTS model skip numbers?'
+    a: 'Often because the numbers never reach it. If the symbol set has no digits and nothing expands them into words first, the digits are dropped during encoding and the model reads the sentence without them. Our tiny model''s encoder keeps only letters, apostrophe and space, so "your order number is 48213" came out as "your order number is." A text normaliser that turns digits into words fixes this case.'
+  - q: 'How does Magpie-TTS reduce hallucinations?'
+    a: "According to NVIDIA's NeMo documentation, Magpie-TTS uses a CTC alignment loss and soft attention priors to make its cross-attention between text and audio monotonic, following a diagonal from the start of the text to the end. The docs credit this with eliminating most hallucination artifacts. We did not run Magpie-TTS."
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Practice from '../../../components/course/Practice.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+
+We asked our tiny model to say "your order number is 48213". It produced 1.74 seconds of audio, and Whisper transcribed it as "your order number is." No error, no warning. The number was gone before the model ran.
+
+A TTS hallucination is output that does not match the text: a skipped word, a repeated phrase, a number that never gets said. This page shows the failure we caught in our own model, why it is different from the attention failures autoregressive models are known for, and how NVIDIA's Magpie-TTS addresses the second kind.
+
+## What counts as a TTS hallucination?
+
+Any gap between what the text says and what the audio says. Four shapes cover most of it:
+
+- **Skips:** a word or phrase in the text never gets spoken.
+- **Repeats:** a word or phrase is spoken twice, or the model loops.
+- **Drift:** the speech falls out of step with the text and the rest of the sentence comes out garbled.
+- **Dropped content:** something in the input never reaches the model, so it cannot be spoken at all.
+
+The first three are failures of the model. The fourth is a pipeline failure, and for a voice agent it can be the most expensive: the dropped content is usually a number, and the number is usually the point of the sentence.
+
+## Why did our model drop the numbers?
+
+Because its encoder only knows 29 symbols: padding, space, apostrophe and the letters a to z. Anything else is filtered out without a sound. From our shared code:
+
+```python
+SYMBOLS = ["<pad>", " ", "'"] + [chr(c) for c in range(ord("a"), ord("z") + 1)]
+SYM2ID = {s: i for i, s in enumerate(SYMBOLS)}
+
+def encode(text: str) -> list[int]:
+    return [SYM2ID[c] for c in text if c in SYM2ID]
+```
+
+The eval harness sends each hard sentence down two paths: lowercased as-is, or through the normaliser first.
+
+```python
+t = normalise(text) if norm else text.lower()
+mel = m.infer(torch.tensor([encode(" " + t + " ")]))[0] * st["mel_std"] + st["mel_mean"]
+```
+
+On the raw path, step 1,650 of our model, verbatim Whisper output:
+
+| Input text                                   | Whisper heard                                |
+| -------------------------------------------- | -------------------------------------------- |
+| your order number is 48213                   | your order number is.                        |
+| room 101 is on the 2nd floor                 | room is on the floor.                        |
+| the account ending in 0042 was charged twice | the account standing in was charged at last. |
+
+With the normaliser, the same model on the first sentence came back as "Your order number is 48,213." and "the total comes to $129.50" came back as "The total comes to $129.50." The durations tell the same story as the transcripts: 1.74 seconds of audio without the normaliser, 5.17 seconds with it. The digits never became frames. Press play.
+
+<AudioSample src="/audio/tts/order-number-no-normaliser.mp3" label="Tiny model, raw text">
+  Step 1,650, input "your order number is 48213". 1.74 s. Whisper heard "your order number is."
+</AudioSample>
+
+<AudioSample src="/audio/tts/order-number-normalised.mp3" label="Tiny model, normalised text">
+  Same model, same sentence after the normaliser. 5.17 s. Whisper heard "Your order number is
+  48,213."
+</AudioSample>
+
+<AudioSample src="/audio/tts/order-number-piper.mp3" label="Piper">
+  Piper en_US-ljspeech-medium, same sentence, its own text processing. 3.85 s.
+</AudioSample>
+
+The normaliser fixes this sentence and little more. Ours reads "0042" as "forty two" and a phone number as two quantities, and the harness cannot see those errors because its reference comes from the same normaliser. [Text normalisation](/learn/100x/tts/text-normalisation-tts) covers doing it properly, and the [eval harness](/learn/100x/tts/tts-eval-harness) lists the scoring caveats that apply to every hard-set number.
+
+## Why can a duration-driven model not skip a word?
+
+Because every symbol it receives gets at least one output frame. The length regulator repeats each symbol's vector by its predicted duration, and that duration is clamped to a minimum of one frame, so nothing handed to the model can vanish. [Duration prediction](/learn/100x/tts/tts-duration-prediction) walks through the code.
+
+That guarantee covers the model's input, and our digits never got that far. The failure happened one step earlier, in `encode`. So the model can mispronounce a word, which on our hard set produced "revenge quality" for "refund policy" in a 32-word sentence. It cannot skip a symbol it was given. It also cannot say a symbol it was never given, and that is the case our transcripts show.
+
+Transcripts from a weak model can still look like wild hallucination. Without the normaliser, "Dr. Okonkwo will see you at 10:30" came back as "I'm going to put a live CD on it." Insertions count as errors, so a sentence's WER can go above 100%. From a transcript alone you cannot tell how much of a garbled line is the model and how much is Whisper guessing at unclear audio.
+
+## Why do autoregressive TTS models skip and repeat words?
+
+Because they decide where they are in the text as they go. An attention-based autoregressive model generates audio one step at a time and uses attention over the text to work out which part it is saying. If attention jumps ahead, words are skipped. If it slides back or stalls, words repeat or the model loops. Nothing forces it to cover each symbol once, in order.
+
+The [FastSpeech paper](https://arxiv.org/abs/1905.09263) framed its explicit durations as the answer: compared with its autoregressive baseline, the authors report that their model "nearly eliminates the problem of word skipping and repeating in particularly hard cases".
+
+Codec-token models can have the same problem. They generate discrete audio tokens autoregressively, like a language model, and attend to the text as they go. NVIDIA's [Magpie-TTS documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/magpietts.html) describes the symptoms in these terms: "Users frequently encounter issues such as repeated words, missing phrases, or speech that drifts out of alignment with the input text."
+
+## How does Magpie-TTS fix attention failures?
+
+By training the attention to be monotonic. The same documentation describes Magpie-TTS as an encoder-decoder transformer over discrete audio tokens from a neural audio codec, whose decoder "autoregressively generates discrete audio tokens" while attending to the encoded text. Two training signals keep that attention in line:
+
+- **A CTC-based alignment loss**, which rewards an alignment that moves forward through the text in order.
+- **Soft attention priors** that guide the attention weights, so the model "learns to produce cross-attention patterns that follow a monotonic diagonal, matching the natural progression of speech from left to right through the text."
+
+In the docs' words, Magpie-TTS "uses CTC (Connectionist Temporal Classification) loss and attention priors to enforce monotonic cross-attention between text and audio", and they credit this design with eliminating "most hallucination artifacts". That is NVIDIA's claim about its model. We did not run Magpie-TTS, and nothing on this page measures it.
+
+The idea echoes the duration-driven approach: give the model a strong reason to cover the text once, in order. Magpie gets it through the loss and a prior while keeping autoregressive generation. [Codec-token TTS](/learn/100x/tts/codec-token-tts) covers what that generation buys.
+
+<Practice label="Catching dropped content">
+  Add a cheap check beside WER: compare each output's duration with its input length. Our raw-text
+  order number came out at 1.74 s against 5.17 s after normalising, a gap a duration check flags
+  without a transcriber. And log every character your encoder throws away.
+</Practice>
+
+Next: [codec-token TTS](/learn/100x/tts/codec-token-tts), the model family Magpie belongs to, and what autoregressive token generation buys in exchange for these risks.

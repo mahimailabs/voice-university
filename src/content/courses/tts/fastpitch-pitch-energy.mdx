@@ -1,0 +1,85 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 15
+unit: 4
+unitTitle: 'The acoustic model'
+title: 'FastPitch pitch and FastSpeech 2 energy predictors: the next step up'
+navTitle: 'FastPitch: pitch and energy'
+summary: 'Our tiny model predicts one number per input symbol: how long it lasts. FastPitch predicts a second, the pitch. That one value is what turns intonation into a control.'
+seoTitle: 'FastPitch Pitch and FastSpeech 2 Energy in TTS | Mahimai'
+keywords:
+  - 'FastPitch'
+  - 'pitch prediction TTS'
+  - 'FastSpeech 2 energy'
+  - 'variance adaptor'
+  - 'prosody control TTS'
+proficiency: 'Intermediate'
+faq:
+  - q: 'What does FastPitch predict that FastSpeech does not?'
+    a: "A pitch value for every input symbol: the fundamental frequency averaged over the frames that symbol lasts. The predicted pitch is projected to the model's hidden size and added to the encoder output before upsampling, so the decoder is told the intonation instead of having to guess it. At inference you can edit that contour."
+  - q: 'Does FastPitch predict energy?'
+    a: 'Not in the original paper. FastPitch conditions on pitch and duration. FastSpeech 2, published around the same time, conditions on pitch, energy and duration, all extracted from the training audio. Later implementations mix the two ideas, so check the config of the one you use.'
+  - q: 'Did you train FastPitch for this build?'
+    a: "No. We trained a duration-only model on a CPU. This page describes FastPitch and FastSpeech 2 from their papers and NVIDIA's NeMo documentation, as the next step you would take from our model."
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Practice from '../../../components/course/Practice.astro';
+
+Our tiny model predicts one number per input symbol: how many 11.6 ms frames it lasts. [FastPitch](https://arxiv.org/abs/2006.06873) predicts a second number per symbol, the pitch, and that single extra value turns intonation from something the decoder guesses into something you can read and edit.
+
+We did not train FastPitch. This page describes it from the paper and NVIDIA's NeMo documentation, as the next step up from [the model we did train](/learn/100x/tts/train-tts-model-from-scratch). By the end you will know what the pitch and energy predictors add, where their targets come from, and what it would take to add one to a duration-only model.
+
+## What does FastPitch add to FastSpeech?
+
+A pitch predictor. For each input symbol it predicts the average fundamental frequency (F0) over the frames that symbol lasts, and feeds that value back into the network before the length regulator.
+
+The FastPitch paper builds its training targets in three steps. Durations come from a Tacotron 2 model trained on LJSpeech, read off its attention. Pitch is estimated per frame from the audio, then "averaged over every input symbol using the extracted durations", with unvoiced frames left out, and standardised to zero mean and unit variance. So the pitch target has exactly one value per symbol, the same shape as the duration target.
+
+At training time the true per-symbol pitch goes in; at inference the predicted one does. Either way, the paper says, "the pitch is projected to match the dimensionality of the hidden representation and added to it", and the sum is upsampled by durations and decoded. The loss is three mean squared errors added together: mel, pitch and duration, with weights on the last two.
+
+The paper reports that conditioning on pitch contours improves quality to a level "comparable to state-of-the-art", and a real-time factor over 900x for mel synthesis of a typical utterance on its own hardware. We have not reproduced either number.
+
+## Where does energy come in?
+
+In [FastSpeech 2](https://arxiv.org/abs/2006.04558). It conditions on three variance signals, pitch, energy and duration, all extracted from the waveform for training and predicted at inference. Energy is a per-frame loudness value computed from the spectrogram.
+
+The FastPitch paper models pitch and duration only, one value of each per input symbol. Implementations borrow freely from both papers, so read the config of the one in front of you before assuming which predictors it has.
+
+| Model             | Predicts per symbol     | Duration targets from     | Loss terms                 |
+| ----------------- | ----------------------- | ------------------------- | -------------------------- |
+| Our tiny model    | Duration                | MMS forced aligner        | Mel L1 + log-duration MSE  |
+| FastPitch (paper) | Duration, pitch         | Tacotron 2 attention      | Mel + pitch + duration MSE |
+| FastSpeech 2      | Duration, pitch, energy | Extracted from the speech | Mel + variance losses      |
+
+## Why would a TTS model predict pitch at all?
+
+Because the same text can be spoken many ways, and a model trained only on mel loss learns their average. Give it pitch explicitly and it no longer has to average intonation into the mel.
+
+"You're coming tomorrow" is a statement or a question depending on whether the pitch falls or rises at the end. A model with no pitch input has to infer that from the letters alone, and when the training data holds both readings, the safest mel prediction sits between them. A pitch predictor still learns an average, but it learns it as a separate, inspectable number per symbol. That gives you two things our tiny model lacks:
+
+- **A target to debug.** You can plot predicted against true pitch for a sentence and see where intonation goes wrong, separately from pronunciation.
+- **A control.** At inference you can shift the whole contour up, flatten it, or raise the last few symbols to make a question, without retraining. NeMo's [FastPitch documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/models.html) describes the same use: modifying the predicted pitch to produce more expressive speech.
+
+## How would you add pitch to our duration-only model?
+
+By mirroring what already exists for durations. Our model has the pieces; it lacks one target and one small network.
+
+1. **Extract F0 per frame** from each training clip at the vocoder's hop, 256 samples, so pitch frames line up with mel frames.
+2. **Average it per symbol** using the [durations the aligner gave us](/learn/100x/tts/tts-duration-prediction), skipping unvoiced frames. Our durations already sum exactly to each clip's mel length, so this is a slice-and-mean.
+3. **Add a pitch predictor** shaped like our duration predictor: a couple of 1-D convolutions over the encoder output, one value per symbol.
+4. **Embed and add.** Project the pitch value to the hidden size (128 in our model) and add it to the encoder output before the length regulator.
+5. **Add a loss term**, MSE on standardised pitch, next to the mel and duration terms.
+
+We have not run this. Two cautions apply before you do. Pitch estimation on 0.74 hours of one speaker will be noisy on some clips, so standardise per speaker and look at the extracted contours. And NeMo also documents the RAD-TTS aligner, which learns alignment inside the TTS model; the docs list FastPitch among the models it improves and say it removes the need for an external aligner. On that stack, your MMS durations become a comparison point rather than an input.
+
+<Practice label="Where pitch control pays off">
+  In a voice agent, a wrong word usually costs more than flat intonation, and words are fixed in the
+  [text front end](/learn/100x/tts/text-normalisation-tts). Reach for pitch control when you need
+  something the front end cannot express: a confirmation read as a question, or emphasis on the one
+  digit a caller got wrong.
+</Practice>
+
+Before any of this, the tiny model's output still has to become sound. Next: [what a neural vocoder does](/learn/100x/tts/what-is-a-neural-vocoder), and why it took 96.4% of our synthesis time.

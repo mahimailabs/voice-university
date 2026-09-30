@@ -1,0 +1,114 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 19
+unit: 6
+unitTitle: 'Measure it'
+title: 'TTS evaluation metrics: output WER, MOS and speaker similarity'
+navTitle: 'TTS evaluation metrics'
+summary: 'Whisper got 1.7% of words wrong on real LJSpeech recordings before any TTS was involved. Output WER, MOS and speaker similarity, and the failure each one cannot see.'
+seoTitle: 'TTS Evaluation Metrics: WER, MOS, Similarity | Mahimai'
+keywords:
+  - 'TTS evaluation metrics'
+  - 'output WER text to speech'
+  - 'mean opinion score TTS'
+  - 'speaker similarity ECAPA'
+  - 'how to evaluate TTS'
+proficiency: 'Intermediate'
+faq:
+  - q: 'What is output WER for text-to-speech?'
+    a: "Output word error rate: synthesise a sentence, transcribe the audio with a speech recogniser, and count the word substitutions, deletions and insertions against the input text, divided by the number of input words. It catches skipped, repeated and wrong words cheaply and automatically. It cannot tell you whether the voice sounds natural, and part of every score is the recogniser's own error."
+  - q: 'What is MOS in TTS evaluation?'
+    a: "Mean opinion score. Listeners rate each sample on a five-point scale (in ITU-T P.800's listening-quality wording: Excellent 5, Good 4, Fair 3, Poor 2, Bad 1) and the arithmetic mean of the ratings is the MOS. It measures perceived quality directly, but it needs a listening test with enough listeners, and the number belongs to the test that produced it."
+  - q: 'How is speaker similarity measured for a cloned voice?'
+    a: "With a speaker verification model. You extract a speaker embedding from a real recording and from the synthesised audio and compare them, usually with cosine similarity. SpeechBrain's ECAPA-TDNN verification model, for example, scores speakers by the cosine distance between embeddings. A high score says the voice identity matches; it says nothing about whether the words were right."
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import Practice from '../../../components/course/Practice.astro';
+
+We ran Whisper base.en over 45 real LJSpeech recordings, no synthesis involved, and it got 1.7% of the 821 words wrong. That is the floor under every TTS word error rate we report, the share that belongs to the transcriber before a voice is involved.
+
+A TTS model has no single correct output, so you cannot diff its audio against a reference. You measure it indirectly, along three axes. This page covers what output WER, mean opinion score and speaker similarity each measure, what each one misses, and why we measured only the first.
+
+## What is output WER for TTS?
+
+Output WER is the word error rate of a speech recogniser listening to your synthesised audio, scored against the text you asked the model to say. Substitutions, deletions and insertions, divided by the number of reference words.
+
+It is the one metric that runs without a human. It catches the failures an agent cannot afford: a dropped order number, a repeated clause, a word swapped for a similar one. Our [tiny model](/learn/100x/tts/train-tts-model-from-scratch) at step 1,650 said "please call me back when you have a moment", and Whisper wrote "please pull me back when you have a moment." One substitution, one error, visible in a log.
+
+Our setup, used for every WER on the following pages: faster-whisper base.en at int8 with beam size 5, on a 4-core cloud container with no GPU. Before scoring, numbers in both the reference and the transcript go through the same minimal normaliser, because Whisper writes numbers as digits. WER is corpus-level, total errors over total reference words:
+
+```python
+def words(t: str) -> str:
+    """Scoring normalisation: numbers to words, lowercase, strip punctuation."""
+    t = normalise(t)
+    return " ".join(re.sub(r"[^a-z' ]", " ", t.lower()).split())
+```
+
+What output WER misses:
+
+- **Everything that is not a word.** A flat, halting or oddly stressed reading scores 0% if every word is recoverable.
+- **The transcriber's own errors.** Our 1.7% floor is in every number. Rare names are worse: on our hard set Whisper wrote "Sersha" for Saoirse and "Nuyin" for Nguyen from Piper's audio, and we cannot tell from the transcript how much of that is the voice.
+- **Its own scoring rules.** A normaliser that turns digits into words decides what "correct" means. The [eval harness](/learn/100x/tts/tts-eval-harness) shows it grading itself on a phone number.
+- **Repaired mistakes (untested).** A recogniser with strong language context may repair a slurred word that a listener on a phone line would miss. We did not test how often that happens.
+
+## What is MOS in text-to-speech?
+
+MOS, mean opinion score, is the average of listeners' ratings on a fixed scale. The method comes from telephony: ITU-T Recommendation [P.800](https://www.itu.int/rec/T-REC-P.800), "Methods for subjective determination of transmission quality" (08/96).
+
+P.800's listening-quality scale is five categories, each with a score:
+
+| Quality of the speech | Score |
+| --------------------- | ----- |
+| Excellent             | 5     |
+| Good                  | 4     |
+| Fair                  | 3     |
+| Poor                  | 2     |
+| Bad                   | 1     |
+
+The recommendation calls the mean of those scores the mean listening-quality opinion score, "or simply mean opinion score", written MOS. It also defines comparison and degradation variants (CCR and DCR, giving CMOS and DMOS), and a separate recommendation, P.800.1 (07/2016), is titled "Mean opinion score (MOS) terminology".
+
+MOS asks the question everyone cares about: how does this sound to a person? What it misses:
+
+- **Content.** Listeners rate how it sounds. A sample that skips a digit can still rate "Good" if nobody checks it against the text.
+- **Portability.** The number depends on the listeners, the instructions, the playback conditions and the other samples in the test. A MOS is a result of one study. Put two scores from two papers side by side and you are comparing two setups as much as two models.
+- **Cost and speed.** It needs a listening test for every change you want to check, so it rarely runs on every commit.
+
+We did not run a listening test. Nothing on these pages reports a MOS for our model or for Piper.
+
+## How do you measure speaker similarity?
+
+With a speaker verification model: embed a real recording of the target speaker and the synthesised audio, then compare the two vectors, usually by cosine similarity.
+
+SpeechBrain's [spkrec-ecapa-voxceleb](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb) is a common choice. Its model card describes an ECAPA-TDNN trained on VoxCeleb 1 and 2, states that "Speaker Verification is performed using cosine distance between speaker embeddings", and reports an equal error rate of 0.80% on the cleaned VoxCeleb1 test set. The architecture is from the [ECAPA-TDNN paper](https://arxiv.org/abs/2005.07143) by Desplanques, Thienpondt and Demuynck. The card lists the licence as Apache-2.0.
+
+Similarity matters whenever the voice is supposed to be someone in particular: a fine-tune, a clone, a brand voice. [Voice cloning vs fine-tuning](/learn/100x/tts/voice-cloning-vs-fine-tuning) compares those routes. What it misses:
+
+- **Words.** The embedding is built to ignore content. A clip that says the wrong sentence in the right voice scores high.
+- **Naturalness.** The model was trained to tell speakers apart. Judging quality is a different task.
+- **A calibrated threshold for TTS.** The verification threshold is tuned on real speech. What cosine score counts as "the same voice" for synthetic speech is a judgement you set with your own references.
+
+We did not measure speaker similarity. Our model and Piper both learned from one LJSpeech reader, and neither is a clone.
+
+<Pull>
+  The three metrics watch different failures. A voice can read every word correctly and sound like
+  someone else, or rate well with listeners while dropping a number.
+</Pull>
+
+## Why did we measure WER only?
+
+Because it was the one we could run on a 4-core container with no GPU, with no listeners, for every checkpoint and every system in the same pass. It also targets the failure we most expected from a model trained on 0.74 hours: wrong and missing words.
+
+The numbers that came out are in the [eval harness](/learn/100x/tts/tts-eval-harness): 19.7% held-out WER for our best checkpoint, 4.0% for [Piper](/learn/100x/tts/end-to-end-tts-vits), 1.7% for Whisper on the real recordings. Each has the scoring caveats listed there next to it. For a voice you plan to ship, add the other two: a small MOS or preference test before a release, and similarity whenever the target is a specific person.
+
+<Practice label="Reading a quality claim">
+  When a provider quotes a quality number, ask which axis it is on. For WER: which transcriber,
+  which sentences, and was a normaliser applied to both sides. For MOS: how many listeners, what
+  scale, and what else was in the test. For similarity: which embedding model and which reference
+  clips.
+</Practice>
+
+Next: [build the eval harness](/learn/100x/tts/tts-eval-harness) that produced these numbers, with its test set, its systems and its full results table.

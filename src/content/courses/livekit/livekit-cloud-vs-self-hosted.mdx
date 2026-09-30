@@ -1,0 +1,84 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 3
+unit: 1
+unitTitle: 'Foundations'
+title: 'LiveKit Cloud vs self-hosted: cost, control, and when each wins'
+navTitle: 'LiveKit Cloud vs self-hosted'
+summary: 'Your agent code does not change by one line. What changes is who owns a 10,001-port UDP range, TURN, Redis and the pager. The two lines that justify self-hosting.'
+seoTitle: 'LiveKit Cloud vs Self-Hosted: When Each Wins | Mahimai'
+keywords:
+  - 'LiveKit Cloud vs self-hosted'
+  - 'self-hosted LiveKit'
+  - 'LiveKit Cloud'
+  - 'should I self-host LiveKit'
+proficiency: 'Beginner'
+faq:
+  - q: 'LiveKit Cloud or self-hosted: which should you use?'
+    a: 'Start on LiveKit Cloud. Move the media plane in-house only when a compliance rule names where audio can live, or the monthly bill passes the cost of two or three dedicated instances. Cloud to self-hosted is a project; self-hosted back to Cloud is trivial, so Cloud first is the low-regret default.'
+  - q: 'Do I have to rewrite my agent to move from LiveKit Cloud to self-hosted?'
+    a: 'No. The APIs, SDKs and agent code are the same. You point the agent at a different server URL and credentials. The work of moving is in the infrastructure: instances, port ranges, TURN, Redis and monitoring.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+Point `LIVEKIT_URL` at LiveKit Cloud or at a server you run on EC2. Your agent code does not change by a single line.
+
+What changes is everything underneath it: a 10,001-port UDP range someone has to size, a TURN relay, Redis, upgrades, and the pager at 3am.
+
+This page gives you the comparison and the two conditions under which running the media plane yourself is worth it. Before either condition is met, self-hosting spends engineering time to buy control you are not using yet.
+
+## What actually changes between Cloud and self-hosted?
+
+Only who runs the media plane. The APIs, the SDKs and the agent code are identical, so the decision is about operations and cost, and you can make it without touching your application.
+
+Your agent reads three settings (`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`), listed in the [startup modes reference](https://docs.livekit.io/agents/server/startup-modes/), and connects to whatever they point at. Swap the values and the same process registers with a different server.
+
+There is also a middle path. You can run your agent workers on your own machines and connect them to LiveKit Cloud's media servers, which keeps the SFU managed while your code stays on infrastructure you control.
+
+## LiveKit Cloud vs self-hosted, side by side
+
+Each option wins on different axes. None of them is a pricing figure; the arithmetic for your volume is in [the self-hosted cost lesson](/learn/100x/livekit/self-hosted-livekit-cost).
+
+| Factor                  | LiveKit Cloud                                                             | Self-hosted                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Time to first call      | A project key and you are live. No EC2, no port ranges, no TURN, no Redis | You build and size all of it ([unit 2](/learn/100x/livekit#unit-2))                                     |
+| Global reach            | Their edge puts an SFU near your users without you building regions       | You build each region yourself                                                                          |
+| Traffic spikes          | Their capacity problem                                                    | Your capacity problem                                                                                   |
+| On-call                 | Upgrades, monitoring and the pager for the media plane are theirs         | Yours                                                                                                   |
+| Cost at volume          | Per-minute pricing: trivial at low volume, compounds hard at scale        | Instance cost, cheaper once volume is high enough                                                       |
+| Data boundary           | Audio transits their infrastructure                                       | Audio can stay in your VPC, your region, or your building                                               |
+| Control                 | Managed for you                                                           | Port ranges, codec policy, instance placement, kernel tuning                                            |
+| Debugging               | Their dashboards                                                          | The logs of the exact machine that misbehaved                                                           |
+| Experiments             | Every load test and internal tool is metered                              | Load tests, long-running agents and internal tools carry no marginal cost                               |
+| Built-in agent insights | Available                                                                 | [Not supported](https://docs.livekit.io/testing/observability/insights/) with self-hosted media servers |
+
+That last row is easy to miss. LiveKit's managed agent observability (transcripts, traces and recordings in one timeline) works only when the media servers are LiveKit Cloud, so on a fully self-hosted stack you bring your own telemetry.
+
+## When does self-hosting LiveKit pay off?
+
+Self-hosting pays off when you cross one of two lines: a compliance rule that names where audio lives, or a monthly bill larger than two or three dedicated instances.
+
+The first line is about the data boundary. For regulated buyers, audio that cannot leave the VPC, the region or the building is a requirement, not a preference, so if a contract says it, the decision is made for you.
+
+Cost is the second line. Per-minute pricing that barely registers at low volume compounds as volume grows, and at some point the same traffic fits on a handful of instances you run yourself. Where that crossover sits depends on your utilisation and redundancy, which is why [lesson 25](/learn/100x/livekit/self-hosted-livekit-cost) builds it from measured numbers.
+
+## Why Cloud first is the low-regret default
+
+The decision is reversible in one direction and sticky in the other. Cloud to self-hosted is a deployment project, and self-hosted back to Cloud is trivial.
+
+That asymmetry settles the order. If you start on Cloud and later cross a line, you run the project then, with real traffic numbers to size against. If you start self-hosted and never cross a line, you paid for the infrastructure work. It bought nothing.
+
+## What you take on when you self-host
+
+If you do cross a line, here is the work, in the order [unit 2](/learn/100x/livekit#unit-2) covers it:
+
+1. **Instances, ports and security groups.** A public IP, three port groups, and an RTP range sized as a capacity decision. [Deploy LiveKit on EC2](/learn/100x/livekit/self-host-livekit-aws).
+2. **Redis and more than one node.** [Multi-node LiveKit with Redis](/learn/100x/livekit/livekit-multi-node-redis).
+3. **Telephony.** The SIP service, its own port range, and carrier NAT. [Self-hosted SIP](/learn/100x/livekit/livekit-sip-self-hosted).
+4. **NAT and TURN.** [One-way audio](/learn/100x/livekit/livekit-one-way-audio-nat) and [TURN setup](/learn/100x/livekit/livekit-turn-server-setup).
+
+LiveKit's own [self-hosting overview](https://docs.livekit.io/transport/self-hosting/) is the reference for each component, and the lessons add what it leaves out: the numbers we measured and the failures we hit.
+
+Next: whichever way you host, the agent is the same code. [Run your first voice agent locally](/learn/100x/livekit/livekit-voice-agent-tutorial).

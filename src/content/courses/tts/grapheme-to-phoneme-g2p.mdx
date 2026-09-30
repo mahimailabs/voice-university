@@ -1,0 +1,96 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 10
+unit: 3
+unitTitle: 'The text front end'
+title: 'Grapheme to phoneme (G2P) for TTS: heteronyms, names and why we kept characters'
+navTitle: 'Grapheme to phoneme'
+summary: 'Our model reads 29 symbols and none of them is a sound. What G2P adds, where it breaks on heteronyms and names, and why a tiny model can skip it.'
+seoTitle: 'Grapheme to Phoneme (G2P) for TTS | Mahimai'
+keywords:
+  - 'grapheme to phoneme'
+  - 'G2P TTS'
+  - 'heteronyms TTS'
+  - 'espeak-ng phonemizer'
+  - 'NeMo G2P'
+  - 'characters vs phonemes TTS'
+proficiency: 'Intermediate'
+faq:
+  - q: 'What is grapheme-to-phoneme conversion?'
+    a: 'G2P turns written letters (graphemes) into the sounds of the language (phonemes), so a TTS model receives "r iː d" or "r ɛ d" instead of the letters r, e, a, d. It usually combines a pronunciation dictionary lookup with a trained model or rules for words the dictionary does not cover.'
+  - q: 'Does Piper use phonemes or characters?'
+    a: 'Phonemes. The piper1-gpl repository describes Piper as a local neural TTS engine that embeds espeak-ng for phonemization, and its CLI docs let you inject raw espeak-ng phonemes in [[ ]] blocks. Both Piper and espeak-ng are licensed GPL-3.0-or-later.'
+  - q: 'Can a TTS model work without G2P?'
+    a: 'Yes. A character model learns spelling-to-sound mappings from its training audio. Our tiny model reads lower-case letters, apostrophe and space, which keeps the pipeline short and lets the forced aligner work on the same letters. The cost is that pronunciation lives in the weights, and you have no phoneme input to correct one word.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+Our tiny model reads 29 symbols: padding, space, apostrophe and the letters a to z. None of them is a sound. When it meets "read", it gets the same four letters whether the sentence is "I will read the book" or "she read it last week", and it had 0.74 hours of audio to learn which sound goes with which.
+
+Most production TTS systems do not ask the model to work that out. They insert a stage that turns letters into phonemes first. This page covers what that stage does, where it breaks, how Piper and NeMo implement it, and why we left it out of our build.
+
+## What is the difference between graphemes and phonemes?
+
+Graphemes are the written units of a language, letters in English. Phonemes are its units of sound. A grapheme-to-phoneme (G2P) step converts one into the other, so the acoustic model receives the sounds to say instead of the spelling.
+
+English is where this earns its place, because spelling and sound drift apart constantly:
+
+| Written          | Phonemes (IPA) | What the letters hide                  |
+| ---------------- | -------------- | -------------------------------------- |
+| read (present)   | /riːd/         | same spelling as the past tense        |
+| read (past)      | /rɛd/          | sounds like "red", spelled like "reed" |
+| lead (to guide)  | /liːd/         | same spelling as the metal             |
+| lead (the metal) | /lɛd/          | sounds like "led"                      |
+
+With phonemes as input, the acoustic model only has to learn how each sound is voiced. The question of which sound belongs in the word has already been answered.
+
+## Why do heteronyms and names break G2P?
+
+Heteronyms break it because the correct phonemes depend on the sentence around the word, and a dictionary maps one spelling to one entry. Names break it because they are rarely in the dictionary at all.
+
+NVIDIA's [NeMo G2P documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/g2p.html) uses the same example: heteronyms are "words that have the same spelling but different pronunciations, e.g., 'read' in 'I will read the book.' vs. 'She read her project last week.'" A lookup alone cannot choose between them. Something has to read the context.
+
+Out-of-vocabulary words are the second problem. Dictionary lookups, the NeMo page says, typically use a resource such as the CMU dictionary, and a word missing from it falls through to a trained model or letter rules. Rare personal names are the standard case, and they are exactly the words an agent has to say correctly.
+
+Our eval hard set has two such names, Saoirse and Nguyen, plus Okonkwo. On Piper's audio, Whisper transcribed them as "Sersha", "Nuyin" and "Akonko". That is Whisper's spelling of what it heard. It does not tell you what Piper said, because a speech recogniser has the same out-of-vocabulary problem in reverse, and we did not listen-verify those rows. The names still belong in any test set: they are where both directions of the text front end are weakest.
+
+## How does Piper turn text into phonemes?
+
+Piper runs espeak-ng. The [piper1-gpl repository](https://github.com/OHF-Voice/piper1-gpl) describes Piper as "a fast and local neural text-to-speech engine that embeds espeak-ng for phonemization". [eSpeak NG](https://github.com/espeak-ng/espeak-ng) is itself a compact open-source synthesizer covering more than 100 languages and accents; Piper uses its text-to-phoneme rules and puts a neural model on the other side.
+
+That makes Piper a phoneme model: the VITS network we measured in [end-to-end TTS](/learn/100x/tts/end-to-end-tts-vits) never sees letters. It also means the phonemizer is part of the product. espeak-ng and the piper-tts runtime are both licensed GPL-3.0-or-later, separately from the MIT-licensed voice weights; [dataset licensing](/learn/100x/tts/tts-dataset-licensing) covers that split.
+
+A phoneme front end also gives you a handle. Piper's CLI docs let you pass espeak-ng phonemes directly in `[[ ]]` blocks, which the next lesson uses to fix a word by hand.
+
+## What G2P models does NeMo provide?
+
+NeMo documents two trained G2P models, both aimed at the words a dictionary cannot settle:
+
+- **ByT5 G2P**, a text-to-text model built on ByT5 that the docs say handles out-of-vocabulary words and heteronyms, and generates its output autoregressively.
+- **G2P-Conformer CTC**, a non-autoregressive model with "a Conformer encoder followed by a linear decoder", which the docs describe as having about 20 times fewer parameters than the ByT5 model.
+
+For heteronyms, the docs describe labelling training data automatically with a RAD-TTS Aligner, so the model learns which pronunciation the audio actually used. For words missing from the dictionary during training, they mask the word with a special token and train the G2P model to output that same token, so it does not learn a guessed pronunciation as truth.
+
+The same page makes the case for phoneme input in one line: TTS systems "use phonetic input during training to directly access and correct pronunciations at inference time". That is the lever [pronunciation control](/learn/100x/tts/tts-pronunciation-control) builds on.
+
+## Why does our tiny TTS model use characters instead of phonemes?
+
+Because characters kept every stage of the build on the same units, with nothing extra to install. The symbol set is the whole front end, from `common.py`:
+
+```python
+SYMBOLS = ["<pad>", " ", "'"] + [chr(c) for c in range(ord("a"), ord("z") + 1)]
+```
+
+Three reasons, in order of weight:
+
+1. **The aligner works on letters.** The MMS aligner in [forced alignment](/learn/100x/tts/forced-alignment-tts) returns a span per letter of the transcript, and those spans became our training durations. Characters in the model means one duration per input symbol with no mapping between two alphabets.
+2. **LJSpeech ships the text we needed.** Its normalised column is already spelled-out words; lower-casing it and dropping punctuation gave us model input directly.
+3. **Fewer dependencies.** No phonemizer, no dictionary and no second licence in the front end.
+
+The cost is that spelling-to-sound is learned from 413 clips. Every pronunciation, including both readings of "read", lives in the weights, and there is no phoneme input to correct one word from outside. Some of the substitutions in our transcripts, such as "pull" for "call" at step 1,650, may partly come from that, though a model this small trained this briefly has other reasons to misspeak, and we did not test the hypothesis.
+
+Piper, a phoneme model its author trained on LJSpeech for 1,000 epochs, scored 4.0% held-out WER in our harness (4-core cloud container, no GPU) against 19.7% for our best checkpoint. That gap mixes phonemes with far more data and training, so it does not isolate G2P. It does show where the ceiling is.
+
+Next: [pronunciation control](/learn/100x/tts/tts-pronunciation-control), the dictionary entries and phoneme overrides a phoneme front end makes possible, and what our character model can do instead.

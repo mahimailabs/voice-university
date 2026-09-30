@@ -1,0 +1,76 @@
+---
+title: Speech to speech, and when it is the wrong choice
+label: Speech to speech
+tag: S2S
+description: 'Speech to speech means one model that hears audio and speaks audio, with no separate text step. This guide covers what it is genuinely better at, and why most production agents still do not use it.'
+order: 5
+updatedDate: 2026-08-19
+related:
+  - { label: 'Speech to text', href: '/learn/components/speech-to-text' }
+  - { label: 'Text to speech', href: '/learn/components/text-to-speech' }
+  - { label: 'Prototype to production', href: '/services/prototype-to-production' }
+---
+
+import Figure from '../../components/learn/Figure.astro';
+import S2sTextBoundary from '../../components/learn/figures/S2sTextBoundary.astro';
+
+There are two ways to build a voice agent, the automated voice that answers the phone, and choosing between them is one of the biggest decisions you will make. It is easy to change on day one and very expensive to change six months in.
+
+The first way is an assembly line: three separate parts in a row. One part turns the caller's speech into text, a second part (the brain, the model that decides what to say) reads that text and works out a reply, and a third part turns that reply back into a voice. The second way is a single all-in-one model that takes audio in and speaks audio straight back out, with no separate text step in the middle.
+
+## The one difference that matters
+
+Everything comes down to the text in the middle, and how much you can trust it.
+
+| Approach      | How it works                                                                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Assembly line | Speech to text, then a brain, then text to speech. Three parts, and the text passing between them is exactly what the agent decided.                                           |
+| All-in-one    | One model. Audio in, audio out. It can produce a written version of the call afterwards, but that is its best guess of what it said, not the exact thing that drove the reply. |
+
+That distinction sounds small. It is the whole decision.
+
+<Figure label="where the trustworthy text lives" filled>
+  <S2sTextBoundary />
+</Figure>
+
+## What the all-in-one is genuinely better at
+
+It is not a gimmick. It is honestly better at some things:
+
+- The back-and-forth feels more natural. It handles overlaps, little "mm-hmm"s, and interruptions the way people do, because it is listening and talking at the same time.
+- Tone survives. Hesitation, warmth, and emotion carry through, because it never has to squash the voice down into plain text and build it back up.
+- It can be faster, because there are fewer steps, though a big all-in-one model is not always quicker than a well-tuned assembly line.
+
+If sounding natural is the whole product, and the conversation is simple, it is worth trying.
+
+## What you give up is trustworthy text in the middle
+
+> In the assembly line, the text in the middle is the exact thing the agent decided: the thing you read to debug, keep as a record, swap a part out with, and check a booking against before it happens. The all-in-one can only hand you a reconstruction of what it said afterwards, which is not the same when you need to trust it.
+
+That text is not clutter. It is the single most useful thing about the assembly line.
+
+## Why the assembly line is still the default
+
+Most agents running with real callers still use the assembly line, for reasons that are boring and decisive. Two quick words first: a tool is an action the agent can actually take, like booking an appointment, taking a payment, or looking up an account. A provider is the outside company that supplies one of the parts.
+
+- **You can debug it.** When a call goes wrong, you read the exact text each part saw and find which one got it wrong. In an all-in-one model there is no exact text in the middle, only a reconstruction pieced together afterwards.
+- **You get a record you can trust.** Regulated work (money, health, contracts, anywhere the law requires proof of what was said) needs a reliable record. The assembly line's text is exactly what was decided. The all-in-one's is a guess made after the fact.
+- **You get the best brain.** The assembly line lets you plug in the smartest available text model as the brain. An all-in-one is limited to however well its single audio model can reason, which today usually lags the best text models.
+- **You can swap one part.** Change your voice provider without touching the brain, and pick the best part for each job. In an all-in-one, changing anything means replacing the whole thing.
+- **It is safer with tools.** All-in-one models can use tools too, but pulling exact details (a date, an amount, an account number) straight from audio, without that exact text checkpoint, is more error-prone. Get it wrong here and it charges the wrong card.
+- **One part failing is contained.** If the voice provider stalls, you can fall back to another. If a single all-in-one model goes wrong, the whole thing goes wrong at once.
+
+It usually costs more, too: sending audio through one big model tends to be pricier than a well-tuned assembly line.
+
+## How to actually choose
+
+The choice is usually settled by what the business needs, not by which one sounds nicer:
+
+- If you need a trustworthy record for regulators, or you have more than a couple of exact tools like booking or payments, or you want the smartest brain, or you want to change providers without a rebuild, the assembly line is the answer today.
+- If the conversation is short, there are only a handful of tools, and sounding natural is the entire point, the all-in-one is worth testing.
+
+And decide early. This is easy to change before you launch, and a big rebuild afterwards. Discovering six months in that you needed a trustworthy record for the regulators is not a tweak. It is starting over.
+
+## The bottom line
+
+The all-in-one model is genuinely better at conversation and genuinely worse at almost everything operational: debugging, keeping a record you can trust, using the smartest brain, swapping parts, and safe tool use. For most real agents, giving all of that up for slightly more natural conversation is not worth it yet, which is why the assembly line is still the default. Settling this decision before it hardens into months of work is exactly the kind of thing we handle in [prototype to production](/services/prototype-to-production).

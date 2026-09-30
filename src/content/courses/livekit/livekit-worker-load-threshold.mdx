@@ -1,0 +1,102 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 13
+unit: 3
+unitTitle: 'Agent workers in production'
+title: 'LiveKit worker load threshold: the worker that stopped at exactly 141 jobs'
+navTitle: 'Worker load thresholds'
+summary: 'A worker stopped taking jobs at exactly 141, with no errors and no restarts. How a fixed count points at a counter, the 0.70 threshold, and the log lines that told us.'
+seoTitle: 'LiveKit Worker Load Threshold: Stopped at 141 Jobs | Mahimai'
+keywords:
+  - 'LiveKit load threshold'
+  - 'LiveKit worker not receiving jobs'
+  - 'load_fnc'
+  - 'load_threshold'
+proficiency: 'Intermediate'
+faq:
+  - q: 'Why did my LiveKit worker stop receiving jobs?'
+    a: 'Check its reported load first. The server stops assigning work to a worker whose load is above the threshold (0.70 in our case), so a load counter that climbs and never comes down will stop dispatch while the worker stays registered and connected.'
+  - q: 'What is the LiveKit load threshold?'
+    a: 'It is the load value above which a worker stops receiving new jobs. In the Python agents framework it is the load_threshold option, which defaults to 0.7, and the load itself comes from load_fnc, a function that returns a value between 0 and 1.'
+  - q: 'How do I find a leaked job counter from logs?'
+    a: 'Pair the events that should come in pairs. If you have N lines saying a job was terminated and zero saying a job ended, the jobs never returned and whatever runs on return, such as a counter decrement, never ran.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+import Pull from '../../../components/course/Pull.astro';
+
+A worker stopped receiving jobs after 141 of them. It stayed registered, stayed connected, logged nothing, showed zero restarts and idle file descriptors. Only a process restart cleared it.
+
+No error. No crash. Just a worker that the server had stopped talking to.
+
+By the end of this page you'll know how LiveKit decides a worker is full, why a repeatable failure count is the best clue you can get, and a one-line log check that would have found this bug on the first capture.
+
+## Why a repeatable count points at a counter
+
+When a failure repeats at the same count, something is counting. A leak drifts, a race is random, and a timeout follows the clock; a counter stops at the same number every time.
+
+It reproduced at 140, 141, and 141, across windows of 56 minutes and 15 minutes, at two different concurrencies. Different durations, different load, the same count. It was driven by count alone, which rules out most of what you would normally suspect.
+
+<Pull>
+  A fixed count is a strong signal. We did not use it early enough: we blamed the job maximum, then
+  concurrent WebSocket writes, then a status loop, and instrumented the third one before doing the
+  thirty-second division that identified the bug outright.
+</Pull>
+
+## The arithmetic: 141 / 200 = 0.705
+
+The worker was configured with a maximum of 200 jobs. It reports load as a fraction of that maximum, and the server stops assigning work to a worker above 0.70.
+
+```text
+141 / 200 = 0.705
+```
+
+That is the whole bug. The counter had reached the threshold and the server had quietly stopped sending work, exactly as designed.
+
+| Jobs counted as active | Reported load | Server assigns new jobs? |
+| ---------------------- | ------------- | ------------------------ |
+| 100                    | 0.500         | yes                      |
+| 141                    | 0.705         | no                       |
+
+Nothing was wrong with the server. It did what it was told by a number that had stopped being true.
+
+## How LiveKit decides a worker is full
+
+Every worker reports a load value between 0 and 1, and the server stops dispatching to it above a threshold. The worker computes the number; the server only reads it. Both knobs are listed in the [Python API reference](https://docs.livekit.io/reference/python/livekit/agents/index.html) under the worker options.
+
+In the Python agents framework these are two [server options](https://docs.livekit.io/agents/server/options/): `load_fnc` returns the current load, and `load_threshold` is the maximum load at which the worker still accepts jobs. The documented defaults are average CPU utilisation over a 5-second window and a threshold of `0.7`. The docs also show a custom `load_fnc` that divides active jobs by a fixed maximum, which is the same shape as the worker here. That shape is fine, as long as the active count is correct. If jobs are counted in and never counted out, the load only climbs, and dispatch stops at a predictable number.
+
+This is the [worker lifecycle](/learn/100x/livekit/livekit-agent-worker-lifecycle) again: the server trusts what workers report. In [the shutdown lesson](/learn/100x/livekit/livekit-agent-shutdown-leak) the missing report was completion. Here it was load.
+
+## Why the counter never came down
+
+Each assignment incremented an active job counter. A deferred decrement was supposed to run when the job's goroutine finished.
+
+The termination handler logged the event and never cancelled the job, so the job's loop kept waiting on a context that only closed when the whole process did. No job ever returned, so no decrement ever ran.
+
+So the fix is in the termination path: whatever handles it has to end the job, and then the code on the return path (the decrement) gets to run.
+
+## Pair your log lines
+
+The log said so all along, and we read past it twice: 141 lines saying the server had terminated a job, and zero lines saying a job had ended. All 141 ended lines appeared at once on restart, the first time anything cancelled that context.
+
+N of one event and zero of its counterpart is worth more than most metrics, and it was visible from the first capture. You can check it mechanically. List the job IDs that have a "terminated" line and no "ended" line:
+
+```bash
+comm -23 \
+  <(grep 'terminated' worker.log | grep -o 'job_id=[^ ]*' | sort -u) \
+  <(grep 'ended' worker.log | grep -o 'job_id=[^ ]*' | sort -u)
+```
+
+Adapt the two patterns to your own log format. Any output is a job that never finished.
+
+## Common mistakes
+
+- **Blaming the configured maximum.** The maximum was 200. The worker stopped at 141 because of the threshold applied to it.
+- **Instrumenting before dividing.** The failure count divided by the job maximum named the bug in thirty seconds. Do that division first.
+- **Reading log lines alone.** Every started needs its ended, every assigned needs its released. A missing partner is the finding.
+- **Trusting "connected" as healthy.** A worker can be registered and connected while receiving nothing. Track jobs assigned per worker over time, and alert when it flattens while traffic continues.
+
+Next: [how to load test a voice agent](/learn/100x/livekit/voice-agent-load-testing) so that failures like this show up in a test run before they show up in production.

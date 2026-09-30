@@ -1,0 +1,73 @@
+---
+title: What makes a good text-to-speech model for a voice agent
+label: Text to speech
+tag: TTS
+description: 'Text to speech is the voice a caller hears. This guide covers why a natural-sounding voice is not the same as a voice that works, and the small things that quietly break real calls.'
+order: 3
+updatedDate: 2026-08-19
+related:
+  - { label: 'Turn detection', href: '/learn/components/turn-detection' }
+  - { label: 'Latency calculator', href: '/tools/latency-calculator' }
+  - { label: 'Custom speech models', href: '/services/custom-speech-models' }
+---
+
+import Figure from '../../components/learn/Figure.astro';
+import TtsSpeed from '../../components/learn/figures/TtsSpeed.astro';
+
+Every text-to-speech demo sells the same thing: how natural the voice sounds. It is the easiest quality to judge in thirty seconds, and close to the least important once real calls start.
+
+Text to speech is the part of the agent that turns its written reply into the spoken voice the caller hears. (The software that does it is called the model, the industry's word for it.) What actually decides whether that voice works on a call is duller and harder to notice than naturalness: whether it answers quickly and evenly, whether it reads a confirmation code correctly, and whether it can get out of the way when the caller talks over it. None of those show up in a demo.
+
+## The speed on the label measures the wrong thing
+
+Vendors advertise how fast the voice starts responding, and they usually time the wrong moment.
+
+Think of a streaming video. The download starts the instant you press play, but you watch nothing until enough has loaded to begin playing. Spoken audio works the same way. It arrives as a stream of small pieces, and a few of them have to arrive before there is anything to play out loud. Many speed tests stop their stopwatch the moment that first piece of data comes back. But the caller hears nothing until real, playable sound actually starts, which can be a third of a second later.
+
+So the number worth trusting is the time until the caller actually hears sound, not the time until the first data comes back. Often, just measuring from that later, honest moment reveals more delay than swapping in a fancier model ever would.
+
+<Figure label="the speed the caller actually feels" filled>
+  <TtsSpeed />
+</Figure>
+
+## Usually fast is not the same as always fast
+
+A voice that answers in a quarter of a second most of the time, but occasionally freezes for two seconds, feels broken. And the two-second one always seems to land in the middle of something important. Callers remember the worst moment of a call, not the average of it.
+
+So the question is not "how fast is it on average," but "how often does it stall." Test it while the system is busy handling other calls, not warmed up and idle, because busy is exactly when the stalls happen and exactly what your callers will get.
+
+## The thing that actually breaks calls is numbers and codes
+
+Here is where a beautiful, natural voice helps you the least, and where most calls quietly fail.
+
+It does not matter how lovely the voice is if it reads the booking number wrong. Said out loud, whole families of letters and numbers sound almost the same, and a phone line makes it worse. Say them and you will hear it: B, D, P, T, and V all rhyme. So do the letter O and the way people say zero, "oh." "M" and "N" blur together. Mishear a single character and the whole confirmation code is wrong, and the caller writes down something that will never work.
+
+> It does not matter how natural the voice sounds if it reads the booking number wrong. Test the voice on the strings the call depends on, not on the demo script.
+
+So test the voice on the things that matter: real order numbers, phone numbers, dates, and amounts of money, spoken over a real phone line, and check every single character. A voice that reads a paragraph of marketing copy beautifully has told you nothing about whether a stranger can write down the code it just read.
+
+## When the caller cuts in, it has to stop fast
+
+People interrupt. When they do, the agent has to go quiet almost instantly. If it keeps talking over the caller for even half a second, two things go wrong: it feels rude, and it drowns out the start of what the caller is saying, so the agent mishears them next.
+
+Remember that the voice arrives in small pieces. That matters here. The smaller those pieces are, the more cleanly the agent can stop, mid-word if it has to. If the voice is delivered in big chunks, it has to finish the current chunk before it can go quiet, so it keeps talking longer than it should. And when it does stop, it has to actually throw away the pieces it had lined up and ready to play, not politely let them finish. Test that interrupting the agent feels immediate, like a person stopping the moment you speak, not like talking over someone who will not let go.
+
+## Does it stay the same voice for the whole call?
+
+On longer answers, or after a call drops and reconnects, some voices slowly drift. The pitch creeps up, the pace shifts, and the voice quietly becomes a slightly different person. Callers notice even when they cannot say what changed. It just feels off, as if someone swapped seats.
+
+Short demo clips never show this, because it takes a while to appear. Test it on long replies and across a call that disconnects and comes back, and listen for whether it is still recognisably the same speaker at the end.
+
+## Can you make it say one word your way?
+
+A voice agent constantly needs small, local control: lean on one word, pause before a code, slow down for a number, or fix the way it says your brand name. Two things make this easy or painful.
+
+First, you want to change one word without redoing the whole sentence. Second, you want a fix like a brand pronunciation to stick everywhere, once, instead of being re-entered on every reply. Watch out for a modern trap: some of the newest, best-sounding voices quietly ignore these controls even though the older ones obeyed them. Check it on the exact voice you plan to ship, not the one in the documentation.
+
+One smaller cousin of this problem is worth a glance. Sometimes the written reply the voice is handed has stray symbols in it: a leftover asterisk, a bit of formatting, an emoji. The voice will read them out loud, literally saying the word "asterisk." It happens when the text was not cleaned up before it reached the voice, and it is jarring the first time a caller hears it.
+
+## How to judge it
+
+Judge the voice on a call, not in a demo, and judge it in this order: does it read numbers and codes right, does it answer quickly and evenly, does it stop the instant the caller cuts in, and does it stay one voice from start to finish. Naturalness is the tie-breaker between two voices that already pass all of that. It is not the test.
+
+When a provider's own voices cannot clear that bar for your language, your accent, or your line of business, that is the point where a voice built specifically for you starts to earn its cost, which is what our [custom speech](/services/custom-speech-models) work is for.

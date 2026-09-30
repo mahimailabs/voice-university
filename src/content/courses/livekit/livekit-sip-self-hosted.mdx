@@ -1,0 +1,152 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 7
+unit: 2
+unitTitle: 'Self-hosting the stack'
+title: 'Self-host the LiveKit SIP service and connect a carrier trunk'
+navTitle: 'Self-host the SIP service'
+summary: 'Port 5060, a 10,000-port RTP range and two API objects sit between your carrier and your agent. The config, the firewall rules, and a first-call checklist in failure order.'
+seoTitle: 'Self-Host LiveKit SIP and Connect a Carrier Trunk | Mahimai'
+keywords:
+  - 'LiveKit SIP self-hosted'
+  - 'LiveKit SIP trunk'
+  - 'LiveKit dispatch rule'
+  - 'LiveKit SIP ports'
+  - 'LiveKit SIP config.yaml'
+proficiency: 'Intermediate'
+status: 'ready'
+updatedDate: 2026-09-27
+faq:
+  - q: 'What ports does the self-hosted LiveKit SIP service need open?'
+    a: "SIP signalling on 5060 (UDP and TCP) and the RTP media range, 10000-20000 UDP by default, set by rtp_port in the SIP config. That range is separate from the SFU's RTP range, and the firewall rule must match the config exactly."
+  - q: 'What is the difference between a LiveKit inbound trunk and a dispatch rule?'
+    a: 'An inbound trunk decides which calls you accept: the numbers dialled and, optionally, the carrier addresses or credentials allowed. A dispatch rule decides where an accepted call goes: which room it lands in and which agent is dispatched to that room.'
+  - q: 'Does the LiveKit SIP service need Redis?'
+    a: 'Yes. The SIP service and LiveKit server communicate over Redis, so the SIP config must point at the same Redis address as every LiveKit node.'
+---
+
+import Practice from '../../../components/course/Practice.astro';
+import DiagramEmbed from '../../../components/course/figures/DiagramEmbed.astro';
+
+Your agent answers in the browser. Now it has to answer a phone.
+
+Between the carrier and the room sits one more binary: the LiveKit SIP service, listening on port 5060 with its own 10,000-port RTP range. It deploys separately from the SFU, and it inherits every sharp edge of telephony.
+
+By the end you'll have a working `config.yaml`, the firewall rules it needs, the two API objects that route a call, and a first-call checklist ordered the way calls actually fail.
+
+## How the SIP service fits into LiveKit
+
+The SIP service turns rooms into phone calls. It answers SIP from your carrier, negotiates codecs, and joins the caller into a room as a participant, where your agent is waiting.
+
+It talks to LiveKit server over Redis, which is also where it keeps SIP session state, and it needs a public IP address of its own so the carrier can reach it. If you followed [the multi-node lesson](/learn/100x/livekit/livekit-multi-node-redis), that Redis is already running.
+
+## Configuration lives in two places
+
+The split matters. The service's `config.yaml` holds infrastructure: addresses, ports, Redis. Trunks and dispatch rules are API objects stored by LiveKit server, so you create them with the `lk` CLI or a server SDK.
+
+### The service config
+
+This is the essential config from LiveKit's [SIP server self-hosting guide](https://docs.livekit.io/transport/self-hosting/sip-server/), with the defaults written out:
+
+```yaml
+# config.yaml for livekit-sip
+api_key: <your-api-key>
+api_secret: <your-api-secret>
+ws_url: wss://livekit.example.com
+redis:
+  # must be the same Redis address your LiveKit nodes use
+  address: redis.internal:6379
+sip_port: 5060
+rtp_port: 10000-20000
+# discover and advertise the public IP in SDP
+use_external_ip: true
+logging:
+  level: info
+```
+
+Run it natively with `livekit-sip --config=config.yaml`, or in Docker. The container needs host networking, because Docker handles a 10,000-port UDP range badly:
+
+```bash
+docker run --rm \
+  -e SIP_CONFIG_BODY="$(cat config.yaml)" \
+  --network host \
+  livekit/sip
+```
+
+### The inbound trunk and the dispatch rule
+
+An [inbound trunk](https://docs.livekit.io/telephony/accepting-calls/inbound-trunk/) says which calls you accept, and a [dispatch rule](https://docs.livekit.io/telephony/accepting-calls/dispatch-rule/) says which room an accepted call lands in and which agent gets dispatched.
+
+```json
+{
+  "trunk": {
+    "name": "carrier-main",
+    "numbers": ["+15105550100"],
+    "allowed_addresses": ["203.0.113.0/24"]
+  }
+}
+```
+
+```json
+{
+  "dispatch_rule": {
+    "rule": { "dispatchRuleIndividual": { "roomPrefix": "call-" } },
+    "name": "inbound-to-agent",
+    "roomConfig": { "agents": [{ "agentName": "inbound-agent" }] }
+  }
+}
+```
+
+```bash
+lk sip inbound create inbound-trunk.json
+lk sip dispatch create dispatch-rule.json
+```
+
+Replace the example CIDR with your carrier's signalling addresses (an empty `allowed_addresses` list accepts traffic from anywhere), or set `auth_username` and `auth_password` on the trunk instead, whichever your provider supports. The individual rule gives every caller a fresh room. Its `agentName` must match the name your agent registers with.
+
+## Which ports does the LiveKit SIP service need?
+
+Two groups: SIP signalling and the service's own RTP range. The SIP service's media ports are separate from the SFU's range, and they follow the same rule as [lesson 5](/learn/100x/livekit/self-host-livekit-aws): the firewall must match the config exactly.
+
+| Port        | Protocol | Config key  | Opened to                    |
+| ----------- | -------- | ----------- | ---------------------------- |
+| 5060        | UDP, TCP | `sip_port`  | Your carrier's SIP addresses |
+| 10000-20000 | UDP      | `rtp_port`  | Your carrier's media sources |
+| 50000-60000 | UDP      | SFU `rtc.*` | Already open from lesson 5   |
+
+The last row is the SFU's range, listed so you don't merge the two: they belong to different processes, and often to different machines.
+
+On the carrier side, the SIP service's public address is your trunk provider's origination target. Your firewall must admit the carrier's addresses inbound for both signalling and media, so take both lists from your provider's documentation. Authentication is IP allowlisting or SIP credentials, depending on the provider.
+
+## The first-call checklist, in the order calls fail
+
+Work down this list in order. Each step only matters once the one above it passes.
+
+1. **The carrier reaches the service.** SIP arrives on 5060. Check with a packet capture on the SIP host (`tcpdump -n -i any port 5060`) while you dial.
+2. **The trunk matches.** The dialled number is in an inbound trunk's `numbers`, and the source address or credentials pass.
+3. **Dispatch fires.** A rule creates the room and requests the agent. If the call rings and nobody answers, compare the rule's `agentName` with your agent's.
+4. **Media flows both ways.** This is the step that fails with no error at all, and it gets the whole [next lesson](/learn/100x/livekit/livekit-one-way-audio-nat).
+
+<DiagramEmbed
+  id="livekit-sip-call-path"
+  title="A first inbound SIP call through LiveKit, step by step (interactive sequence diagram)"
+>
+  The first call in the order failures occur: INVITE, trunk match, dispatch, agent join, then media
+  in both directions.
+</DiagramEmbed>
+
+If you need to read the INVITE itself, [RFC 3261](https://www.rfc-editor.org/rfc/rfc3261) is the reference for every header you'll see in the capture.
+
+## Run it on its own instance
+
+Deploy the SIP service on its own instance instead of beside the SFU. It has a different scaling profile, different port needs and a different restart cadence, and when you read a packet capture you want one service's traffic on the wire, with nothing interleaved.
+
+How that instance scales once call volume grows is its own problem, covered in [scaling inbound SIP](/learn/100x/livekit/scaling-inbound-sip).
+
+<Practice label="Try it">
+  Keep one test trunk with a real phone number pointed at every environment, including staging. The
+  number of telephony defects that only reproduce with a real carrier, real NAT and a real handset
+  is high enough that calling it from your phone is a legitimate test method, and the cheapest one
+  you will ever run.
+</Practice>

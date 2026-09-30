@@ -1,0 +1,122 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 10
+unit: 3
+unitTitle: 'Agent workers in production'
+title: 'LiveKit agent worker lifecycle: registration, dispatch, jobs'
+navTitle: 'Worker lifecycle'
+summary: 'The caller hung up and 75 seconds later the job process still held 439 MB. The states a LiveKit agent worker and its jobs move through, and where each one breaks.'
+seoTitle: 'LiveKit Agent Worker Lifecycle: Registration, Dispatch, Jobs | Mahimai'
+keywords:
+  - 'LiveKit agent worker'
+  - 'LiveKit job dispatch'
+  - 'LiveKit worker lifecycle'
+  - 'LiveKit job shutdown'
+  - 'LiveKit worker draining'
+proficiency: 'Intermediate'
+status: 'ready'
+updatedDate: 2026-09-27
+faq:
+  - q: 'What states does a LiveKit agent job go through?'
+    a: 'Registration (the worker connects to the server and declares what it can run), dispatch (the server offers it a job), job start (a new process runs your entrypoint), running, completion (the job reports finished and the server releases its resources), and draining when the worker is told to shut down.'
+  - q: 'Does returning from the entrypoint end a LiveKit agent job?'
+    a: 'Not by itself. In the leak we traced, the entrypoint returned without connecting to the room, nothing resolved the job, and the process stayed resident until the code called ctx.shutdown() explicitly.'
+  - q: 'How does a LiveKit agent worker shut down without dropping calls?'
+    a: 'It drains: it stops accepting new jobs and waits for the running jobs to finish before exiting. Deploys rely on that state to replace workers without cutting calls off.'
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import DiagramEmbed from '../../../components/course/figures/DiagramEmbed.astro';
+
+The caller hung up. Seventy-five seconds later the job process was still resident, holding 439 MB.
+
+Our entrypoint had returned cleanly. Every metric said the call had completed. But the job had never reported that it finished, so as far as the framework was concerned, it was still running.
+
+That job was stuck in a state the demo never visits. By the end you'll know every state a LiveKit agent worker and its jobs move through, which production failure lives in each, and what to log so a missing transition shows up on day one.
+
+## The lifecycle at a glance
+
+A worker registers, receives jobs, runs each one in its own process, and reports each one finished. The happy path touches every state once. Production behaviour (load reporting, draining, leaks) lives in the states that can stall.
+
+| State        | What happens                                            | Where it breaks in production                                               |
+| ------------ | ------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Registration | Worker connects over WebSocket, declares what it runs   | Registered and connected, yet receiving no work                             |
+| Dispatch     | Server picks a worker, weighing its reported load       | [Stops at 141 jobs](/learn/100x/livekit/livekit-worker-load-threshold)      |
+| Job start    | A new process runs your entrypoint                      | [Memory per call](/learn/100x/livekit/livekit-agent-memory-pss-rss)         |
+| Running      | The process holds the session; parent keeps dispatching | Finished calls whose processes never exit pile up here                      |
+| Completion   | Job reports finished; server releases its resources     | [The report never arrives](/learn/100x/livekit/livekit-agent-shutdown-leak) |
+| Draining     | Worker stops taking jobs, waits for running ones        | [Deploys that cut calls](/learn/100x/livekit/voice-zero-downtime-deploys)   |
+
+The current LiveKit docs call the worker an agent server and describe the same flow in their [server lifecycle](https://docs.livekit.io/agents/server/lifecycle/) page. We keep the word worker.
+
+## Registration and dispatch: how a job reaches a worker
+
+A worker process starts, connects to the LiveKit server over WebSocket, and declares what it can run. From that moment it is a candidate for work.
+
+When a room needs an agent, the server picks a registered worker and offers it the job. The request comes either from an explicit dispatch call or from a dispatch rule, as with the SIP rule in [lesson 7](/learn/100x/livekit/livekit-sip-self-hosted). Selection weighs the load each worker reports. That detail is the whole story of a worker that stopped receiving jobs after exactly 141, in [lesson 13](/learn/100x/livekit/livekit-worker-load-threshold): it stayed registered and connected, and its reported load had quietly crossed the line.
+
+## Job start and running: one job, one process
+
+The worker spawns a process for the job, and your entrypoint runs inside it with the room in context (LiveKit's [job lifecycle docs](https://docs.livekit.io/agents/server/job/) describe what the context carries). One job, one process. Isolation is the design: a crash in one call does not take down the others on the same worker.
+
+Its cost is memory. Every concurrent call is a process, which is why measuring memory per call correctly matters so much, and why RSS gets it wrong ([lesson 11](/learn/100x/livekit/livekit-agent-memory-pss-rss)).
+
+While a job runs, its process holds the session: audio in, pipeline, audio out. The parent worker keeps servicing dispatch the whole time, holding many concurrent job processes at once.
+
+## Completion: when does a LiveKit job end?
+
+A job ends when its process reports finished, and only then does the server release everything attached to it. Your code returning is a separate event, and the two can come apart.
+
+That is what happened in the opening. The job process was waiting for a signal (connecting to the room, an explicit shutdown call, or a crash), and our entrypoint returned without producing any of them. The fix was one line, `ctx.shutdown(reason="call ended")`. The expensive part was where the leak surfaced: the media server holds a per-job handler until the report arrives, so the leak showed up on a different machine from the one running our code. [Lesson 12](/learn/100x/livekit/livekit-agent-shutdown-leak) walks through it.
+
+<DiagramEmbed
+  id="livekit-worker-lifecycle"
+  title="LiveKit agent worker job lifecycle, including the shutdown leak (interactive state diagram)"
+>
+  The job lifecycle, with the state the demo never visits: a job that never reports finished until{' '}
+  <b>ctx.shutdown</b> is called.
+</DiagramEmbed>
+
+## Draining: how a worker leaves without dropping calls
+
+A worker told to shut down stops accepting new jobs and waits for its running jobs to finish. Deploys depend on this state. Kill a worker without it and every call it was serving loses its agent mid-sentence.
+
+The drain sequence, and the three timeouts that have to line up for it to work, are in [zero-downtime deploys](/learn/100x/livekit/voice-zero-downtime-deploys).
+
+<Pull>
+  The framework's contract in one sentence: the server trusts what workers report (load, liveness
+  and completion). Every pathological state we hit in production was a truthful system acting on an
+  untruthful report. The lessons that follow are instances of it.
+</Pull>
+
+## Log every transition with the job ID
+
+Log each lifecycle transition with the job ID from day one. Our two worst debugging sessions were resolved by noticing which expected transition never appeared in the logs, and that observation is only available if the transitions are logged at all.
+
+A minimal version, using the job context's shutdown callback:
+
+```python
+import logging
+
+from livekit.agents import AgentServer, JobContext
+
+logger = logging.getLogger("lifecycle")
+server = AgentServer()
+
+
+@server.rtc_session(agent_name="inbound-agent")
+async def entrypoint(ctx: JobContext):
+    job_id = ctx.job.id
+    logger.info("job started", extra={"job_id": job_id, "room": ctx.room.name})
+
+    async def on_shutdown(reason: str):
+        logger.info("job ended", extra={"job_id": job_id, "reason": reason})
+
+    ctx.add_shutdown_callback(on_shutdown)
+    # ... your session setup
+```
+
+Then read the logs in pairs. Every "started" needs an "ended". In lesson 13 the log held 141 lines saying the server had terminated a job and zero saying a job had ended. That imbalance was the finding, and it was visible from the first capture.
+
+Next: [memory per call](/learn/100x/livekit/livekit-agent-memory-pss-rss), and why the job processes you just learned about look more than three times as expensive in `top` as they are.

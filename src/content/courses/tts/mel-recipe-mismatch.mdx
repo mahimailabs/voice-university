@@ -1,0 +1,127 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 17
+unit: 5
+unitTitle: 'The vocoder'
+title: 'Mel recipe mismatch: what breaks when your mel does not match the vocoder'
+navTitle: 'Mel recipe mismatch'
+summary: 'Swap the mel scale from Slaney to HTK and our vocoder output moved from 12.3 to 33.2 dB from the original. Move the frequency ceiling and it barely changed. Measured.'
+seoTitle: 'Mel Recipe Mismatch Between Acoustic Model and Vocoder | Mahimai'
+keywords:
+  - 'mel spectrogram mismatch vocoder'
+  - 'HiFi-GAN mel parameters'
+  - 'slaney vs htk mel scale'
+  - 'vocoder noise debugging'
+  - 'copy synthesis'
+proficiency: 'Intermediate'
+faq:
+  - q: 'Why does a pretrained vocoder produce bad audio from my mel spectrograms?'
+    a: 'The most common cause is a mel recipe mismatch: your mel was computed with different settings from the ones the vocoder was trained on. Check sample rate, n_fft, hop, number of mels, fmin and fmax, the mel scale (Slaney or HTK), the filter normalisation, magnitude or power, and the log compression. Run copy synthesis on a real clip with your recipe to confirm.'
+  - q: 'What is the difference between the Slaney and HTK mel scales?'
+    a: "They are two formulas for mapping hertz to mels, and they place the mel filters at different frequencies. With the same number of filters, bin 40 means a different band in each. torchaudio's MelSpectrogram defaults to HTK with no filter normalisation, while librosa defaults to Slaney with Slaney normalisation, so the two libraries disagree out of the box."
+  - q: 'Which mel recipe mismatch is the worst?'
+    a: 'In our test on one LJSpeech clip with the SpeechBrain HiFi-GAN, switching to the HTK mel scale without Slaney normalisation was by far the worst: log-spectral distance 33.2 dB against 12.3 dB for the correct recipe. Raising fmax from 8,000 to 11,025 Hz moved it only to 12.9 dB, and a librosa dB-scaled power mel gave 14.7 dB.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import Practice from '../../../components/course/Practice.astro';
+
+We fed the same 7.55-second clip to the same HiFi-GAN four times, changing how the mel spectrogram was computed: one setting, or one library's defaults. With the correct recipe, the output was 12.3 dB from the original by log-spectral distance. With the HTK mel scale, it was 33.2 dB.
+
+Two other changes that look just as serious barely registered. This page shows the recipe, the four versions you can play, and why the mismatches are so unequal, so that the first time your vocoder produces garbage you know where to look.
+
+## What is a mel recipe?
+
+It is the full list of settings that turns audio into a [mel spectrogram](/learn/100x/tts/mel-spectrogram): sample rate, FFT size, hop, number of mel bins, frequency range, mel scale, filter normalisation, magnitude or power, and log compression. A vocoder learns one recipe, and only that one.
+
+Ours is the recipe of the pretrained [speechbrain/tts-hifigan-ljspeech](https://huggingface.co/speechbrain/tts-hifigan-ljspeech) vocoder, copied from its model card. Every stage of the build uses this one dictionary, so [the acoustic model we trained](/learn/100x/tts/train-tts-model-from-scratch) learns exactly what the vocoder expects:
+
+```python
+MEL_ARGS = dict(
+    sample_rate=SR,
+    hop_length=HOP,
+    win_length=None,
+    n_fft=1024,
+    n_mels=80,
+    f_min=0.0,
+    f_max=8000.0,
+    power=1,
+    normalized=False,
+    norm="slaney",
+    mel_scale="slaney",
+    compression=True,
+)
+```
+
+`SR` is 22,050 and `HOP` is 256. `power=1` means the magnitude spectrogram. `compression=True` applies a natural log, `log(clamp(x, 1e-5))`. None of this is a universal standard, and the defaults in popular libraries disagree with it.
+
+## What happens when the mel recipe does not match the vocoder?
+
+It depends entirely on which setting is wrong. On LJ001-0009, by log-spectral distance to the original (lower is closer, 80 dB floor):
+
+| Mel fed to the vocoder                 | Log-spectral distance |
+| -------------------------------------- | --------------------- |
+| Correct recipe (copy synthesis)        | 12.3 dB               |
+| fmax 11,025 Hz instead of 8,000 Hz     | 12.9 dB               |
+| librosa dB-scaled power mel            | 14.7 dB               |
+| HTK mel scale, no Slaney normalisation | 33.2 dB               |
+
+This is one clip and one vocoder, and log-spectral distance is not a perceptual score. It measures how far each spectrum drifted; how a listener would rate the result is a separate question. Press play on each and judge for yourself.
+
+<AudioSample src="/audio/tts/copy-synthesis.mp3" label="Correct recipe">
+  Copy synthesis. 12.3 dB from the original.
+</AudioSample>
+
+<AudioSample src="/audio/tts/mismatch-fmax.mp3" label="fmax 11,025 Hz">
+  Same filter count, upper band edge moved. 12.9 dB.
+</AudioSample>
+
+<AudioSample src="/audio/tts/mismatch-librosa-db.mp3" label="librosa dB power mel">
+  Power spectrogram converted to decibels. 14.7 dB.
+</AudioSample>
+
+<AudioSample src="/audio/tts/mismatch-htk-mel.mp3" label="HTK mel scale">
+  HTK mel scale with no Slaney normalisation. 33.2 dB.
+</AudioSample>
+
+Each variant is one line against the correct recipe:
+
+```python
+"mismatch_fmax": mel_spectrogram(audio=x, **{**MEL_ARGS, "f_max": 11025.0}),
+"mismatch_htk": mel_spectrogram(audio=x, **{**MEL_ARGS, "mel_scale": "htk", "norm": None}),
+```
+
+<Pull>
+  Mismatches are not equal. Changing the mel scale was catastrophic on our clip; a different
+  frequency ceiling barely registered.
+</Pull>
+
+## Why is a mel scale mismatch worse than an fmax mismatch?
+
+Because the mel scale decides which frequencies every bin means, while fmax only stretches where the filters end. A vocoder reads bin positions as meaning.
+
+The HTK and Slaney formulas map hertz to mels differently, so with 80 filters over the same range, filter 20 in one covers a different band from filter 20 in the other. The vocoder has learned "energy in bin 20 means a harmonic around here". Move the bins and it is rendering the wrong spectrum. Dropping Slaney normalisation compounds it, because that normalisation divides each filter by its bandwidth, so every bin's magnitude changes too.
+
+Moving fmax from 8,000 to 11,025 Hz keeps the scale and count and spreads the 80 filters over a wider band. Each bin shifts, but less, and LJSpeech carries little energy up there: on this clip, 1.9% of the energy is above 8 kHz. That is our best explanation for the 0.6 dB change, and we have not tested it further.
+
+The librosa variant sits between the two. We passed it the vocoder's `n_fft` 1024, hop 256 and 80 mels, and it still changes several things at once: power instead of magnitude, decibels (`10 log10`) instead of a natural log, an 80 dB floor below the peak, and librosa's default fmax, which is half the sample rate. Its values are on a different scale from what the vocoder expects, yet it scored 14.7 dB. We did not isolate which of those changes cost the most.
+
+## How do you check a mel recipe before training?
+
+Run [copy synthesis](/learn/100x/tts/what-is-a-neural-vocoder) with your recipe on a real clip before you train anything. If the vocoder cannot render mels computed from real audio, it will not render your model's predictions either.
+
+The check that catches this bug in practice is a default. torchaudio's [MelSpectrogram](https://docs.pytorch.org/audio/stable/generated/torchaudio.transforms.MelSpectrogram.html) defaults to the HTK scale with no normalisation and power 2. librosa (0.11) defaults to Slaney with Slaney normalisation, power 2, `n_fft` 2048 and hop 512. Write the recipe out in full, as above, and never rely on either library's defaults matching a vocoder.
+
+A shape check belongs in the pipeline too. Our data prep recomputes each clip's mel and asserts its frame count equals the length the aligner's durations add up to, so a hop or sample rate slip fails loudly before training.
+
+<Practice label="Check the recipe first">
+  When a vocoder output goes wrong, do these in order. Read the vocoder's model card and write its
+  recipe out as one dictionary. Run copy synthesis on one real clip with that dictionary. Only if
+  copy synthesis sounds right should you look at your acoustic model.
+</Practice>
+
+Next: [end-to-end TTS with VITS](/learn/100x/tts/end-to-end-tts-vits), which removes this class of bug at inference: there is no mel hand-off between separately trained models.

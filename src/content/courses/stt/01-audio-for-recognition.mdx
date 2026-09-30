@@ -1,0 +1,102 @@
+---
+course: 'stt'
+courseTitle: 'STT Model'
+order: 1
+title: 'Audio fundamentals for recognition'
+summary: 'What a recognition model actually consumes: log-mel features, the 8 kHz telephone ceiling that erases whole consonant classes, and how noise breaks the pipeline twice.'
+lessons:
+  - { n: 1, title: 'What the model hears' }
+  - { n: 2, title: 'Telephony audio: 8 kHz, codecs, and why benchmarks lie' }
+  - { n: 3, title: 'Noise, reverb, and signal to noise ratio' }
+status: 'ready'
+updatedDate: 2026-08-19
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import Practice from '../../../components/course/Practice.astro';
+import Figure from '../../../components/course/Figure.astro';
+import YouTube from '../../../components/course/YouTube.astro';
+import MelSpectrogram from '../../../components/course/figures/MelSpectrogram.astro';
+import BandwidthLoss from '../../../components/course/figures/BandwidthLoss.astro';
+
+## 1. What the model hears
+
+A recognition model never sees sound. It sees a sequence of numbers, and the shape of that sequence decides what recognition can and cannot do.
+
+Audio arrives as a sampled waveform: air pressure measured thousands of times per second, 16 kHz being the standard for speech, because human speech carries nearly all of its information below the 8 kHz ceiling that rate can represent. Each sample is one amplitude value, converted to 32-bit float in -1.0 to 1.0 before any model touches it.
+
+Almost no recognition model consumes raw samples. The waveform is converted to **log-mel features**: short overlapping windows, typically 25 milliseconds, transformed to the frequency domain, warped onto the mel scale that mirrors human hearing, and compressed logarithmically. The result is a matrix of roughly 100 frames per second by 80 frequency bands. That matrix is the model's entire universe.
+
+<Figure label="What the model actually reads">
+  <MelSpectrogram course="stt" />
+</Figure>
+
+<Pull>
+  One second of speech becomes about 100 feature frames. Every recognition decision, every phoneme,
+  every word boundary, is a pattern read off that grid. Understanding STT failures starts with
+  asking what the pattern looked like at the frames where it failed.
+</Pull>
+
+The framing matters for latency too. Features are computed over windows, so a model cannot know about audio that has not arrived. Every architecture in unit 3 is a different answer to how much future audio to wait for before committing to a transcript.
+
+<Practice>
+  Feature extraction is standardised enough to be invisible and configurable enough to break things.
+  A model fed features computed with the wrong window, hop, or mel count does not error. It
+  transcribes badly, and the team debugs the prompt. As with sample rates, check the feature recipe
+  first.
+</Practice>
+
+## 2. Telephony audio: 8 kHz, codecs, and why benchmarks lie
+
+Published accuracy numbers are measured on clean, wideband audio. Phone calls are neither, and the gap between the two is the most consistently underestimated number in voice AI.
+
+Traditional telephony samples at **8 kHz**, capping content at 4 kHz. The energy that distinguishes s from f from th sits largely above that line, which means the acoustic evidence for entire consonant classes is simply absent from the signal. No model recovers information that was never transmitted; the good ones guess from context.
+
+<Figure label="The evidence a phone line throws away">
+  <BandwidthLoss />
+</Figure>
+
+On top of the narrowband floor sits a **codec**. G.711 passes narrowband audio essentially uncompressed but harsh. Mobile and VoIP paths add compression tuned for human ears, not for feature extraction, and calls that traverse multiple networks get transcoded more than once, stacking artifacts.
+
+<Pull>
+  A model with a published 5 percent error rate on clean benchmarks routinely doubles or worse on
+  real telephone audio. The benchmark is not wrong. It is answering a different question than the
+  one your agent asks.
+</Pull>
+
+<YouTube
+  id="9KV2OkvczYI"
+  title="Why benchmarks lie: WER against SNR, wideband versus the 8 kHz narrowband your agent meets"
+/>
+
+The practical consequences run through the whole course. Evaluate on audio from your actual call path, not on files recorded from a browser. When comparing providers, compare on your calls, because narrowband robustness varies far more between models than clean-audio accuracy does. And when training, unit 2's codec simulation exists precisely to close this gap.
+
+<Practice>
+  The cheapest accuracy win in telephony STT is often upstream of the model: checking which codec
+  your trunk actually negotiated, and whether anything in the media path is resampling twice. We
+  have seen accuracy problems diagnosed for weeks at the model layer that were a transcoding
+  misconfiguration.
+</Practice>
+
+## 3. Noise, reverb, and signal to noise ratio
+
+After bandwidth, the second axis of real-world difficulty is everything in the signal that is not the speaker: background noise, other voices, and the room itself.
+
+**Signal to noise ratio** is the controlling variable. Recognition accuracy degrades smoothly as SNR falls, and how fast it degrades is a genuine differentiator between models, one that clean benchmarks never surface. Speakerphones, cars, kitchens, and call centres all live in the SNR range where models separate.
+
+**Reverberation** is subtler. A reflective room smears each sound into the next, blurring exactly the transitions recognition depends on. It is why a speaker who is perfectly clear at arm's length becomes hard to transcribe from across a conference room.
+
+**Competing speech** is the hardest case. A television, a second speaker, a side conversation: statistically these look like the signal, because they are the same kind of signal. This is where false transcripts come from, words no one said to the agent, transcribed confidently.
+
+<Pull>
+  Noise breaks voice pipelines twice: once by degrading the transcript, and once upstream by
+  triggering false voice activity, which breaks endpointing before recognition even runs. A noise
+  problem is never just an accuracy problem.
+</Pull>
+
+Mitigations stack: noise suppression before recognition helps both problems at once, and models trained with heavy noise augmentation, unit 2 again, degrade far more gracefully than models that only met clean audio.
+
+<Practice>
+  Build your test sets in three SNR tiers: clean, moderate, and hostile. A provider ranking measured
+  on tier one routinely inverts on tier three, and tier three is where your unhappiest callers live.
+</Practice>

@@ -1,0 +1,116 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 25
+unit: 6
+unitTitle: 'Operating in production'
+title: 'Self-hosted LiveKit cost per minute, and the crossover against Cloud'
+navTitle: 'Self-hosted cost per minute'
+summary: 'Priced at its 550-call ceiling, a self-hosted SFU node looks cheap per minute. Priced at the calls it actually carries, it may not be. Build the number that survives, then the crossover.'
+seoTitle: 'Self-Hosted LiveKit Cost per Minute vs Cloud | Mahimai'
+keywords:
+  - 'self-hosted LiveKit cost'
+  - 'LiveKit cost per minute'
+  - 'build vs buy voice infrastructure'
+  - 'LiveKit Cloud vs self-hosted cost'
+proficiency: 'Advanced'
+faq:
+  - q: 'How do you calculate self-hosted LiveKit cost per call-minute?'
+    a: 'Add up the hourly cost of every tier (SFU, workers, SIP, Redis, TURN), bandwidth, redundancy nodes and the engineering time to run them, then divide by the call-minutes you actually carry per hour. Dividing by capacity instead of achieved call-minutes is the most common way the figure comes out too low.'
+  - q: 'When is self-hosting LiveKit cheaper than a managed service?'
+    a: 'When sustained monthly minutes push your amortised cost per minute below the managed rate. With realistic utilisation that is typically in the hundreds of thousands of minutes per month; earlier when compliance already forces dedicated infrastructure, later when traffic is spiky.'
+  - q: 'Why does utilisation matter so much for voice infrastructure cost?'
+    a: 'A fleet is provisioned for peak and runs below it most of the day, so its fixed hourly cost is spread over fewer call-minutes than its capacity suggests. A utilisation assumption off by a factor of three makes the per-minute cost off by the same factor.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
+
+Price an SFU node at its 550-call ceiling and the cost per call-minute looks tiny. Price the same fleet the way it actually runs (400-call cap, a spare node, quiet hours) and the figure is eleven times higher.
+
+Both numbers come from the same machines. Only one of them belongs in a build-versus-buy memo.
+
+This lesson builds the per-minute cost of a self-hosted LiveKit fleet from the slopes measured in earlier lessons, applies the three adjustments that spreadsheets skip, and finds where it crosses a managed per-minute rate. We use a placeholder instance price throughout. Plug in your own.
+
+## The formula: cost per call-minute, tier by tier
+
+Cost per call-minute for one tier is the instance's hourly cost divided by the call-minutes it carries in that hour (calls per node x 60), taken at your operating point with headroom included, never at the theoretical ceiling.
+
+```text
+tier cost per call-minute = instance hourly cost / (calls per node x 60)
+```
+
+Using the fleet shape from the [capacity model](/learn/100x/livekit/voice-capacity-model):
+
+- **SFU nodes**, capped at 400 calls each, binding on ports.
+- **Worker nodes**, capped by CPU at their measured density.
+- **Fixed overhead**: the SIP service, Redis and TURN, which cost the same whether you carry ten calls or ten thousand.
+- **Bandwidth**, which for a media plane is a first-class line. Egress on relayed and carrier-bound audio adds up at exactly the scale where self-hosting starts winning.
+
+The LiveKit [deployment guide](https://docs.livekit.io/transport/self-hosting/deployment/) says the same thing from the other side: server scalability is bound by CPU and bandwidth.
+
+<CourseFigure
+  id="lk-cost-buildup"
+  title="Cost per call-minute built up from five tier costs, adjusted for utilisation, redundancy and engineering time, then compared against the managed rate"
+>
+  Each tier contributes its hourly cost over the calls it carries and the adjustments raise the
+  figure, and only once the result is priced per achieved call-minute do we compare it against the
+  managed rate.
+</CourseFigure>
+
+## A worked example for the SFU tier
+
+Here is the SFU tier alone, with a hypothetical instance price of **$X per hour** and the 500-call peak from the capacity lesson. The only number not measured in earlier lessons is the average concurrency, which is also hypothetical: 150 calls across the day.
+
+| Pricing basis                                | Arithmetic      | Cost per call-minute |
+| -------------------------------------------- | --------------- | -------------------- |
+| Port ceiling, one node                       | X / (550 x 60)  | X / 33,000           |
+| Operating cap, one node                      | X / (400 x 60)  | X / 24,000           |
+| Peak fleet with a spare (3 nodes, 500 calls) | 3X / (500 x 60) | X / 10,000           |
+| Same fleet at average load (150 calls)       | 3X / (150 x 60) | X / 3,000            |
+
+The first row is the number a quick spreadsheet produces, and the last row is the one you pay. Same instance, same price, eleven times apart.
+
+Now repeat for the worker tier with your CPU density, add the fixed overhead and bandwidth per hour, and divide the total by the same achieved call-minutes. Nothing else about the method changes.
+
+## Three adjustments spreadsheets skip
+
+Each of these is a place where a cost model quietly flatters itself.
+
+1. **Utilisation.** A fleet provisioned for peak runs below it most of the day. Divide by achieved call-minutes, never by capacity. That is the jump from the third row to the fourth above.
+2. **Redundancy.** The extra node you run so that one can fail. In the example it is the third SFU node, and it turns X / 24,000 into X / 10,000 at peak.
+3. **Engineering time.** The people who operate all of it, the on-call included, priced at what you actually pay for them. Spread their monthly cost over your monthly call-minutes like any other fixed line.
+
+<Pull>
+  The most common self-hosting mistake we see is not technical: it is a utilisation assumption off
+  by a factor of three. Run the calculation with measured slopes and real utilisation before renting
+  hardware. Rerun it quarterly after.
+</Pull>
+
+## Where self-hosted crosses the managed rate
+
+Self-hosted crosses the managed rate at the monthly volume where the two per-minute costs meet. A managed rate stays close to flat as volume grows, while yours falls with utilisation because most of it is fixed.
+
+With letters instead of prices:
+
+```text
+F = your fixed monthly cost (all instances, redundancy, overhead, engineering)
+v = your variable cost per minute (mostly bandwidth)
+M = the managed rate per minute
+m = monthly call-minutes
+
+self-hosted cost per minute = F / m + v
+crossover volume            = F / (M - v)
+```
+
+Below the crossover, managed wins on every axis that is not compliance, and with realistic utilisation the crossover typically sits in the hundreds of thousands of minutes per month. It arrives earlier when compliance already forces dedicated infrastructure (F is partly spent anyway) and later when traffic is spiky (you pay for peak nodes that sit idle). The decision itself, and why Cloud first is usually the cautious path, is in [LiveKit Cloud vs self-hosted](/learn/100x/livekit/livekit-cloud-vs-self-hosted).
+
+To fill in X for your region, use your provider's published instance rates, for example the [EC2 on-demand pricing page](https://aws.amazon.com/ec2/pricing/on-demand/), or your committed-use rate if you have one.
+
+## Sometimes the memo says buy
+
+This memo (your fleet, your slopes, your traffic shape) is the build-versus-buy deliverable, and sometimes it says buy. A capacity model that only ever recommends building is selling hardware. The same arithmetic applies to serving your own [STT](/learn/100x/stt/06-serving) and [TTS](/learn/100x/tts/tts-cost-and-deployment) models, all the way down.
+
+If you want this model built on your own measurements, it is part of what a [prototype-to-production engagement](/services/prototype-to-production) covers.

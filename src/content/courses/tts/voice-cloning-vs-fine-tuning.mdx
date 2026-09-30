@@ -1,0 +1,89 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 26
+unit: 7
+unitTitle: 'Adapt and ship'
+title: 'Voice cloning vs fine-tuning: which one a TTS voice needs'
+navTitle: 'Cloning vs fine-tuning'
+summary: 'Zero-shot cloning can work from 3 seconds of audio. The Piper voice we measured trained 1,000 epochs on a 23.9 h corpus. When each fits, and the consent line for both.'
+seoTitle: 'Voice Cloning vs Fine-Tuning for TTS | Mahimai'
+keywords:
+  - 'voice cloning vs fine-tuning'
+  - 'zero-shot voice cloning'
+  - 'custom TTS voice'
+  - 'voice cloning consent'
+  - 'brand voice TTS'
+proficiency: 'Intermediate'
+faq:
+  - q: 'What is the difference between voice cloning and fine-tuning?'
+    a: 'Cloning conditions a model that already knows many voices on a short reference recording, with no training. Fine-tuning changes the model weights on hours of one speaker or one dialect. Cloning is fast and nearly free per voice; fine-tuning costs data and compute and gives a voice whose behaviour you have measured.'
+  - q: 'How much audio does zero-shot voice cloning need?'
+    a: 'The VALL-E paper reports cloning from a 3-second enrolled recording, and NVIDIA describes Magpie-TTS as working from just a few seconds of reference audio. The reference recording also carries its noise and room sound into the output, so a clean few seconds beats a noisy minute.'
+  - q: 'Do you need consent to clone a voice?'
+    a: 'Yes. Treat written consent from the speaker, covering the specific use, as a hard requirement for cloning and for fine-tuning on their recordings, including internal demos. A few seconds of audio is technically enough to clone almost anyone, so the consent record is what separates a product from a liability.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import AudioSample from '../../../components/course/AudioSample.astro';
+import Pull from '../../../components/course/Pull.astro';
+
+The [VALL-E paper](https://arxiv.org/abs/2301.02111) reports imitating an unseen speaker from "a 3-second enrolled recording." The Piper LJSpeech voice we ran was trained from scratch by its author for 1,000 epochs on LJSpeech, a corpus of 23.9 hours in total. Both produce a voice. They answer different questions, and picking the wrong one is expensive in either direction.
+
+By the end of this page you will know what each approach buys, a table to decide between them, and why consent has to be settled before either one starts.
+
+## What is zero-shot voice cloning?
+
+Zero-shot cloning conditions a model that already knows many voices on a short reference recording, with no training at all. You pass the reference in, and the model continues in that voice.
+
+In a codec-token model the reference is encoded into the same tokens the model generates, so the voice is part of the prompt. The [Magpie-TTS documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/magpietts.html) describes a dedicated context encoder that processes the reference audio, enabling synthesis from "just a few seconds of reference audio." [Codec-token TTS](/learn/100x/tts/codec-token-tts) covers how those models work.
+
+Three properties follow from that design:
+
+- **The prompt is all the model gets.** A few seconds holds the voice's character and whatever style fits into those seconds; how it phrases a long answer is left to the model's defaults.
+- **The recording comes along.** VALL-E notes that the prompt's emotion and acoustic environment are preserved. A reference taken in a noisy room produces a voice that sounds like it lives in one.
+- **Consistency is sampled, not trained.** The model re-derives the voice from the prompt on every request, so identity can drift across a long session or between calls.
+
+## What does fine-tuning a voice give you instead?
+
+Fine-tuning moves the model's weights towards one speaker, so the voice is stored in the model rather than supplied at request time. It costs hours of clean, consented audio, a training run and an evaluation cycle, and it gives you behaviour you can measure before shipping.
+
+Piper's LJSpeech voice is a dedicated single-speaker model. It was trained from scratch rather than adapted from a base, but it shows the property that matters. We ran it on a 4-core cloud container with no GPU against three probe sentences outside LJSpeech: mean output WER 1.9% by Whisper base.en, at a real-time factor of 0.052. That WER comes from a fixed test set you can re-run after every change. A clone can go through the same test set; the difference is that a sampled clone re-derives the voice on every request, so its output may vary between runs, and one pass says less about the next. Piper is a VITS model, covered in the [end-to-end lesson of unit 5](/learn/100x/tts/end-to-end-tts-vits).
+
+<AudioSample src="/audio/tts/piper-trained-from-scratch.mp3" label="Piper, LJSpeech voice">
+  Probe: "this voice was trained from scratch on one small computer". Part of the 1.9% mean WER run.
+</AudioSample>
+
+Cloning and full training are the two ends. [LoRA fine-tuning](/learn/100x/tts/lora-tts-fine-tuning) sits between them, and the two meet in research: [LoRP-TTS](https://arxiv.org/abs/2502.07562) trains a small LoRA on a single noisy recording so that a zero-shot model imitates it better, and reports speaker similarity up to 30 percentage points higher.
+
+## Should you clone a voice or fine-tune one?
+
+Clone when you need many voices, quickly, and small drift is acceptable. Fine-tune when one voice is the product and has to hold steady for every caller.
+
+| Question                  | Zero-shot cloning                        | Fine-tuned voice                    |
+| ------------------------- | ---------------------------------------- | ----------------------------------- |
+| Audio needed              | Seconds (3 s in VALL-E)                  | Hours of clean single-speaker audio |
+| Training                  | None                                     | A GPU run plus an evaluation cycle  |
+| Identity across a session | Good, can drift                          | Stored in the weights               |
+| Speaking style            | Whatever the prompt carries              | Learned from the training data      |
+| Recording artefacts       | Copied from the reference                | Reduced by data filtering           |
+| Cost per extra voice      | Near zero                                | A new dataset and run               |
+| Right for                 | Prototypes, personalisation, many voices | The brand voice, one voice at scale |
+
+A common production path uses both. Clone candidate voices during design to audition them through your real audio path, including the telephone band. Then, if the chosen voice is the brand, collect consented data and fine-tune it for stability. If the voice only needs to be pleasant and consistent enough, the clone may be the finished product, provided your [eval harness](/learn/100x/tts/tts-eval-harness) shows it holds up on your hard sentences.
+
+## What consent does voice cloning require?
+
+Written consent from the speaker, naming the use, before any reference audio is processed. This applies to cloning and to fine-tuning on someone's recordings, and it applies to internal demos too.
+
+The reason is the number at the top of this page. If three seconds is enough, then nearly anyone who has spoken on a recording is technically cloneable. The technical barrier is gone, so the consent record is the only barrier left. [Dataset licensing and consent](/learn/100x/tts/tts-dataset-licensing) sets out what that record should contain: who the speaker is, what they agreed to, for how long, and how they withdraw.
+
+LJSpeech shows the other side of the same rule. It is public domain, built from LibriVox readings, which is why we could train on it and why Piper's author could ship a voice from it. Public-domain status settles the licence for the recordings; for a living speaker cloned into a product, you still want their signature.
+
+<Pull>
+  A few seconds of audio is enough to clone a voice. That makes the consent form the real
+  requirement, and it applies to demos as much as to products.
+</Pull>
+
+Next: [TTS streaming and serving](/learn/100x/tts/tts-streaming-serving), where a chosen voice meets real traffic.

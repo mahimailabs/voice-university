@@ -1,0 +1,121 @@
+---
+course: 'stt'
+courseTitle: 'STT Model'
+order: 5
+title: 'Fine tuning'
+summary: 'The escalation ladder that reaches fine tuning last, the LoRA-versus-full-fine-tune fork for acoustic adaptation, dialect and code-switching as the highest-value work, and closing the domain-vocabulary loop.'
+lessons:
+  - { n: 14, title: 'When biasing beats fine tuning' }
+  - { n: 15, title: 'Full fine tune versus LoRA for acoustic adaptation' }
+  - { n: 16, title: 'Dialect, accent, and code-switching adaptation' }
+  - { n: 17, title: 'Domain vocabulary: drug names, part numbers, jargon' }
+status: 'ready'
+updatedDate: 2026-08-19
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import Practice from '../../../components/course/Practice.astro';
+import Figure from '../../../components/course/Figure.astro';
+import LoraFigure from '../../../components/course/figures/LoraFigure.astro';
+
+## 14. When biasing beats fine tuning
+
+The escalation ladder for recognition accuracy, cheapest rung first:
+
+- **Fix the audio path.** Codec negotiation, double resampling, noise suppression. Lesson 2's cheapest wins live here, upstream of any model.
+- **Normalisation and formatting.** If errors are formatting mismatches, dates, numbers, casing, the fix is policy, not modelling.
+- **Biasing and vocabularies.** Lesson 10's runtime lever, dynamic per call and per turn. Exhaust it before any training conversation.
+- **A different provider or model size.** An afternoon with the harness, no training run.
+- **Fine tuning.** The last rung, for what none of the above can reach.
+
+The diagnostic that separates rung three from rung five is the same one as the TTS course, run in reverse. Take your worst hundred errors from the harness. If they concentrate on **specific words**, product names, jargon, spellings, biasing fixes them this afternoon. If they spread across **ordinary words in a particular voice**, an accent, a dialect, a delivery style the model mishears broadly, no phrase list helps, because the gap is acoustic. That is a distribution problem, and distribution problems are what fine tuning is for.
+
+<Pull>
+  Biasing tilts choices among transcriptions the model already finds plausible. It cannot make the
+  model hear a vowel system it never learned. Where the error list is lexical, bias. Where it is
+  acoustic, train.
+</Pull>
+
+<Practice>
+  The one-day audit that runs this ladder against a client's error log is the highest-value
+  diagnostic in recognition work. Most engagements end at rung one or three, cheaper and faster than
+  anyone expected, and the ones that genuinely reach rung five arrive there with the evidence
+  already assembled.
+</Practice>
+
+## 15. Full fine tune versus LoRA for acoustic adaptation
+
+Once the ladder ends at training, the same fork as the TTS course: how much of the model to touch.
+
+**Full fine tuning** updates every weight. Maximum capacity, maximum cost, and for recognition one specific danger: **catastrophic forgetting with a twist**. A model fine-tuned hard on your domain gets better on your test set and quietly worse on everything adjacent, the out-of-vocabulary caller, the unexpected topic, the accent you did not collect. Recognition models serve open-ended input, so narrowing the distribution is a real regression, and the harness's general slices exist to catch it.
+
+**LoRA adapters** freeze the base and train small low-rank matrices alongside it. The recognition-specific consequences:
+
+- **Hours, not hundreds of hours.** Meaningful acoustic adaptation from single-digit hours of labelled target audio.
+- **The base cannot forget.** Frozen weights preserve general robustness exactly; remove the adapter and the original model returns.
+- **Adapters per condition.** One per accent region, per channel type, per acquisition, swappable at load time, and even selectable per call where routing knows the caller population.
+- **A capacity ceiling.** Timbre-level and accent-level adaptation sits comfortably inside low rank. An unfamiliar language does not.
+
+<Figure label="LoRA freezes the base and trains a small adapter alongside it">
+  <LoraFigure />
+</Figure>
+
+<Pull>
+  Default to LoRA, escalate on evidence, and let the harness arbitrate: the adapter earns escalation
+  to full fine tuning only when it plateaus below the acceptance bar on the target slice while the
+  general slices hold.
+</Pull>
+
+<Practice>
+  The acceptance bar goes in writing before training, same as the TTS course: target entity error
+  rate and WER on the dialect or domain slice, a no-regression bound on the general slices, and the
+  latency ceiling. Adaptation projects without a pre-agreed bar do not end. They dissipate.
+</Practice>
+
+## 16. Dialect, accent, and code-switching adaptation
+
+The highest-value recognition adaptation, and the mirror of TTS lesson 16: base models hear minority variants through majority ears. The symptom is a model that transcribes the standard variant cleanly and degrades sharply, sometimes to unusable, on speakers the deployment actually serves.
+
+The working recipe:
+
+- **Data: hours of target-variant speech with verbatim transcripts,** many speakers, prepared per unit 2, and matched to the deployment channel, telephone dialect speech for a telephone agent, with codec simulation closing any gap.
+- **Coverage of the distinguishing features.** The vowel shifts, consonant realisations, rhythm, and characteristic vocabulary that separate the variant. An adaptation set that undersamples them produces a model that still mishears exactly the distinctive parts.
+- **One adapter per variant,** not a blended one, adapters are cheap and blending reproduces the majority-pull problem at smaller scale, with per-call selection where the routing layer knows the caller population.
+- **A variant-specific test set built with native speakers,** scored on entity error rate as well as WER, because the words that matter commercially are usually also the words the base model mangles most.
+
+**Code-switching**, callers moving between languages mid-sentence, is the hardest tier. Monolingual models transcribe the embedded language as noise in the matrix language. Adaptation needs genuinely mixed training speech, not two monolingual corpora concatenated, and evaluation needs mixed test utterances, because the failure lives precisely at the switch points.
+
+<Pull>
+  For the markets where this matters, and they are exactly the markets big providers serve worst,
+  dialect adaptation is not polish. It is the difference between an agent the population can use and
+  one it hangs up on.
+</Pull>
+
+<Practice>
+  Same as its TTS twin: the training loop is commodity. The data discipline, the variant test set,
+  the native-speaker loop, and the pre-agreed bar are what ship. This lesson is the recognition half
+  of our custom speech work, and the two halves usually travel together in an engagement.
+</Practice>
+
+## 17. Domain vocabulary: drug names, part numbers, jargon
+
+The last adaptation lesson closes the loop the unit opened: the twenty words your business depends on, and the full toolchain for getting them right, assembled in cost order.
+
+**Runtime first.** Biasing with the domain phrase list, dynamic per context per lesson 10, plus formatting rules for the structured entities, codes, dosages, part-number grammars, that recognition should render in your written convention. For most vocabularies most of the way, this is the whole fix.
+
+**Data next, where biasing saturates.** Rare terms fail not because the decoder disfavours them but because the model has barely heard them spoken. Targeted audio of the vocabulary in natural context, real usage where it exists, recorded or synthesised speech where it does not, folded into a light adaptation pass, teaches the acoustics that no phrase list can. Synthetic audio for STT training data is a legitimate and increasingly standard trick here, with one rule: hold out real human recordings for the test set, so the model is never graded on the same synthetic voice it learned from.
+
+**Confusable pairs get special handling.** Every domain has near-homophones where a substitution is expensive, medication names are the canonical case. These earn their own test-set section, their own entity class in the harness, and, where the stakes justify it, downstream confirmation logic in the agent rather than blind trust in the transcript.
+
+<Pull>
+  Vocabulary work is finished when the entity error rate on your own entity classes clears the bar
+  you set, on your own audio, sliced by condition. Not when the demo transcribes the product name
+  once.
+</Pull>
+
+<Practice>
+  This lesson is where recognition quality becomes a business number: entity accuracy is bookings
+  captured, orders correct, doses confirmed. It is the metric we put in acceptance criteria, because
+  it is the one the client's own dashboard already measures, whether anyone told the voice stack or
+  not.
+</Practice>

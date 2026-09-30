@@ -1,0 +1,97 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 18
+unit: 5
+unitTitle: 'The vocoder'
+title: 'End-to-end TTS with VITS: Piper against our cascade on a CPU'
+navTitle: 'End-to-end TTS: VITS'
+summary: 'Piper, a VITS model, scored 1.9% word error on our probes at 19x real time on 4 CPU cores. Our cascade: 21% and about 4x. What one model with no mel hand-off buys.'
+seoTitle: 'End-to-End TTS with VITS and Piper, Measured | Mahimai'
+keywords:
+  - 'end-to-end TTS'
+  - 'VITS text to speech'
+  - 'Piper TTS'
+  - 'VITS vs FastSpeech HiFi-GAN'
+  - 'TTS on CPU'
+proficiency: 'Intermediate'
+faq:
+  - q: 'What is end-to-end text-to-speech?'
+    a: 'A model that goes from characters or phonemes straight to a waveform in one network, with no separately trained vocoder. VITS is the best-known example: it combines a variational autoencoder, normalising flows and adversarial training, and learns durations with a stochastic duration predictor.'
+  - q: 'Is Piper faster than a FastSpeech-style model with HiFi-GAN?'
+    a: "In our test on a 4-core cloud container with no GPU, Piper's en_US-ljspeech-medium voice ran at a real-time factor of 0.052 (about 19 times faster than real time) against 0.24 for our tiny FastSpeech-style model plus the SpeechBrain HiFi-GAN. We did not profile Piper, so we do not attribute the gap to a specific cause."
+  - q: 'What licence does Piper use?'
+    a: 'Two, for two parts. The piper-tts runtime package is GPL-3.0-or-later. The voice weights in the rhasspy/piper-voices repository are MIT, and the LJSpeech voice card lists its dataset as public domain. Check both before you ship.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import AudioSample from '../../../components/course/AudioSample.astro';
+import Practice from '../../../components/course/Practice.astro';
+
+Piper's LJSpeech voice, a 63.5 MB VITS model, transcribed at 1.9% word error rate on our three probe sentences and ran about 19 times faster than real time on a 4-core cloud container with no GPU. Our cascade, on the same probes and the same machine: 21% and about 4 times.
+
+Both learned from the same dataset. This page explains what end-to-end TTS is, what the measured gap does and does not tell you, and what you give up when there is no mel spectrogram between the stages.
+
+## What is end-to-end TTS?
+
+An end-to-end model turns text symbols into a waveform in one network. NeMo's [TTS overview](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/intro.html) puts it as integrating the text, acoustic and vocoder stages "as a single model so that it directly synthesizes audios from graphemes/phonemes inputs without any intermediate processes."
+
+[VITS](https://arxiv.org/abs/2106.06103) is the model most people mean. Its paper combines three ideas:
+
+- a **variational autoencoder**, whose latent space stands in for the mel spectrogram and is never handed to a separate model;
+- **normalising flows**, which make the text-conditioned prior over that latent more expressive;
+- **adversarial training**, with a waveform decoder trained the way a GAN vocoder is.
+
+It also replaces a deterministic duration predictor with a stochastic one, so the same sentence can come out with different rhythms. The authors report that on LJSpeech it reaches a mean opinion score comparable to the ground-truth recordings. We did not measure MOS for anything in this build.
+
+[Piper](https://github.com/OHF-Voice/piper1-gpl) packages VITS voices for local use, exported to ONNX, with espeak-ng for phonemisation in front. Its LJSpeech voice was trained by its author for 1,000 epochs at "medium" quality, according to the voice card.
+
+## How does Piper compare with our tiny model?
+
+On three probe sentences, two timed passes each after a warm-up pass, transcribed by Whisper base.en:
+
+| 4 CPU cores, no GPU | Our cascade (step 1,650 + HiFi-GAN)         | Piper en_US-ljspeech-medium                 |
+| ------------------- | ------------------------------------------- | ------------------------------------------- |
+| Mean output WER     | 21%                                         | 1.9%                                        |
+| Real-time factor    | 0.24 (about 4x faster than real time)       | 0.052 (about 19x)                           |
+| Size                | 1,231,185 params + pretrained vocoder       | 63.5 MB ONNX file                           |
+| Training            | 1,650 steps (200 s), 0.74 h of audio, by us | 1,000 epochs on LJSpeech, by Piper's author |
+
+Treat the WER column as indicative. Three sentences is 28 words, and Piper's 1.9% is a single substitution: on one of its two passes Whisper heard "A quick brown fox" for "The quick brown fox". Every other Piper transcript was exact. On the larger test in the [eval harness](/learn/100x/tts/tts-eval-harness), 45 held-out sentences and 821 words, the gap holds: Piper 4.0%, our best checkpoint 19.7%, against 1.7% for Whisper on the original recordings.
+
+Here is the same probe from each system. Press play.
+
+<AudioSample src="/audio/tts/piper-trained-from-scratch.mp3" label="Piper">
+  Probe: "this voice was trained from scratch on one small computer". Whisper transcribed it
+  exactly.
+</AudioSample>
+
+<AudioSample src="/audio/tts/tiny-step1650.mp3" label="Our tiny model, step 1,650">
+  Same probe. Whisper heard "This device was trained from scratch and one small compiler."
+</AudioSample>
+
+The comparison is lopsided on purpose. Piper is a finished voice trained on the full dataset; ours is a teaching model trained on 413 clips for 200 seconds. The useful reading is the distance between them: that is the part of the job a CPU and a few minutes cannot do.
+
+## Why is Piper faster than our cascade?
+
+We did not profile it, so this section is reasoning, clearly labelled. Our measurement only says the whole Piper pass took 0.052 of real time and our two-stage pass took 0.24, with 96.4% of ours in the HiFi-GAN vocoder.
+
+Plausible contributors: Piper runs through ONNX Runtime while our pipeline runs eager PyTorch; its "medium" voice may use a smaller waveform decoder than the SpeechBrain HiFi-GAN; and it makes one pass instead of two. Any of these could dominate. If speed decides your choice, time both on your own hardware rather than trusting our explanation.
+
+## What do you give up with an end-to-end model?
+
+The mel spectrogram as an interface, and everything that interface gave you.
+
+- **No stage-by-stage debugging.** In a cascade, [copy synthesis](/learn/100x/tts/what-is-a-neural-vocoder) isolates the vocoder, and a bad mel points at the acoustic model. In VITS the two are one network.
+- **No mixing and matching.** We paired a model trained for 200 seconds with a vocoder someone else trained. With VITS you train or fine-tune the whole thing; Piper's author trained this voice for 1,000 epochs.
+- **No mel recipe bug.** The flip side: the failure measured in [mel recipe mismatch](/learn/100x/tts/mel-recipe-mismatch) cannot happen, because nothing hands a mel from one model to another.
+- **Two licences to check.** The piper-tts runtime is GPL-3.0-or-later; the [piper-voices](https://huggingface.co/rhasspy/piper-voices) weights are MIT. [Dataset licensing](/learn/100x/tts/tts-dataset-licensing) covers why that split matters.
+
+<Practice label="Cascade or end-to-end">
+  Ship an end-to-end voice when a good one exists for your language and speaker and you want the
+  fewest moving parts. Keep a cascade when you need to swap the vocoder, debug stages separately, or
+  train an acoustic model on data too small for a full end-to-end run.
+</Practice>
+
+Next: [how to evaluate TTS](/learn/100x/tts/tts-evaluation-metrics), and why output WER was the one metric we could measure for every system here.

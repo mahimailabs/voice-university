@@ -1,0 +1,113 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 2
+unit: 1
+unitTitle: 'Sound as numbers'
+title: 'Mel spectrogram for TTS: the exact recipe your vocoder expects'
+navTitle: 'The mel spectrogram'
+summary: 'Our model predicts 80 numbers every 11.6 ms and never touches a waveform. Those 80 numbers only work if they follow the vocoder recipe to the last parameter.'
+seoTitle: 'Mel Spectrogram for TTS: The Vocoder Recipe | Mahimai'
+keywords:
+  - 'mel spectrogram'
+  - 'log mel spectrogram'
+  - 'mel spectrogram TTS'
+  - 'Slaney vs HTK mel'
+  - 'HiFi-GAN mel parameters'
+  - 'spectrogram hop length'
+proficiency: 'Beginner'
+faq:
+  - q: 'What is a mel spectrogram?'
+    a: 'A mel spectrogram is a spectrogram whose frequency axis has been squeezed into a small number of bands (80 in our build) spaced on the mel scale, which gives low frequencies finer resolution than high ones. Taking the log of the band energies gives the log-mel spectrogram most TTS acoustic models predict.'
+  - q: 'What mel settings does the SpeechBrain LJSpeech HiFi-GAN expect?'
+    a: 'Its model card lists 22,050 Hz audio, n_fft 1024, hop length 256, 80 mel bands from 0 to 8,000 Hz, magnitude (power 1), the Slaney mel scale and Slaney normalisation, and log compression. Any acoustic model feeding that vocoder has to predict exactly this representation.'
+  - q: 'Are librosa and torchaudio mel spectrograms the same?'
+    a: 'Not by default. librosa uses the Slaney mel formula and Slaney area normalisation; torchaudio MelSpectrogram defaults to the HTK formula, no normalisation, power 2, 128 bands and 16 kHz. You can make them match, but only by setting every parameter explicitly.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import Figure from '../../../components/course/Figure.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import MelSpectrogram from '../../../components/course/figures/MelSpectrogram.astro';
+import YouTube from '../../../components/course/YouTube.astro';
+
+The acoustic model we train in unit 4 outputs 80 numbers every 11.6 milliseconds. It never produces a single audio sample. Those 80 numbers are one column of a mel spectrogram, and a pretrained vocoder turns the columns into sound.
+
+That split only works if both sides agree on what a column means. By the end of this page you will know how a waveform becomes a log-mel spectrogram, and you will have the exact recipe our vocoder was trained on, in code, as the first piece of the build.
+
+## What is a spectrum, and what is a spectrogram?
+
+A spectrum is the strength of each frequency in one short window of audio, computed with the discrete Fourier transform. A spectrogram is many of those windows side by side: time along one axis, frequency along the other, energy as brightness.
+
+The waveform from the [sampling lesson](/learn/100x/tts/what-is-audio-sampling) tells you when the pressure moved. It does not tell you which frequencies were present, and that is what separates an "s" from an "f", or one vowel from another. Speech also changes every few tens of milliseconds, so a single spectrum of a whole clip is useless. We slide a window along the audio instead.
+
+In our recipe the window is 1,024 samples (46.4 ms at 22,050 Hz) and it moves 256 samples at a time. That step is the **hop**: 256 / 22,050 = 11.6 ms. The median LJSpeech clip of 149,149 samples becomes 583 columns. Each FFT of 1,024 samples gives 513 frequency bins, about 21.5 Hz apart.
+
+<YouTube id="WH47YLLOCgo" title="How we see sound: waveform to spectrogram to mel" />
+
+## What makes a spectrogram "mel"?
+
+A mel spectrogram replaces the evenly spaced FFT bins with a smaller set of overlapping triangular filters spaced on the mel scale, which is roughly linear at low frequencies and logarithmic above. Low frequencies get narrow filters and fine detail; high frequencies get wide filters and coarse detail, which matches how hearing resolves pitch.
+
+Our recipe uses 80 filters between 0 and 8,000 Hz. So 513 bins collapse to 80 numbers per column. Taking the logarithm of each number gives the **log-mel spectrogram**, because loudness is perceived on a roughly logarithmic scale and because logs keep quiet and loud frames in a range a network can regress.
+
+<Figure label="Mel spectrogram">
+  <MelSpectrogram />
+</Figure>
+
+Predicting this compact picture instead of raw samples is the design most cascaded TTS systems share. [Tacotron 2](https://arxiv.org/abs/1712.05884) made the case for it: its authors write that "using a compact acoustic intermediate representation" (mel spectrograms) allowed a significant reduction in the size of the WaveNet architecture. Our model sits in the same family.
+
+## Which mel recipe does the vocoder expect?
+
+The vocoder expects the exact recipe it was trained on, and for the [SpeechBrain LJSpeech HiFi-GAN](https://huggingface.co/speechbrain/tts-hifigan-ljspeech) the model card lists it: 22,050 Hz, n_fft 1024, hop 256, 80 mels, fmin 0, fmax 8,000, power 1 (magnitude), Slaney mel scale and Slaney normalisation, with log compression. The card adds: "Use these specific parameters to match the Vocoder's training settings."
+
+This is the build artifact for unit 1. It lives in `common.py`, and the training and vocoder scripts import it from there:
+
+```python
+# common.py
+MEL_ARGS = dict(
+    sample_rate=SR,  # 22050
+    hop_length=HOP,  # 256
+    n_fft=1024,
+    n_mels=80,
+    f_min=0.0,
+    f_max=8000.0,
+    power=1,
+    norm="slaney",
+    mel_scale="slaney",
+    compression=True,
+)
+
+def mel(audio):  # (samples,) float32 at 22050 Hz -> (80, frames) log-mel
+    return mel_spectrogram(audio=audio, **MEL_ARGS)
+```
+
+`compression=True` is a natural log of the magnitude, clamped at 1e-5 so silence does not become minus infinity. Three details in that block matter more than they look:
+
+- **`power=1`** means magnitude. Many tutorials compute power (magnitude squared), which doubles every log value.
+- **`mel_scale="slaney"`** picks one of two common mel formulas. The other is HTK.
+- **`f_max=8000.0`** leaves the band from 8,000 to 11,025 Hz out of the picture entirely. The vocoder never learned to draw it.
+
+The same function also produces the training targets. `train.py prep` runs `mel()` on every kept clip and checks that the frame count matches the aligner's durations before saving, so the model learns to predict exactly what the vocoder reads.
+
+## Why don't two mel spectrograms match by default?
+
+Two libraries rarely agree on a mel spectrogram because each picks different defaults, and none of them is wrong. [librosa's filter bank](https://librosa.org/doc/0.11.0/generated/librosa.filters.mel.html) defaults to the Slaney formula, Slaney normalisation and fmax at half the sample rate. torchaudio's `MelSpectrogram` defaults to the HTK formula, no normalisation, power 2, 128 bands and 16 kHz audio. Neither default is our vocoder's recipe.
+
+We measured what a mismatch costs on one clip, LJ001-0009, by comparing each vocoder output to the original with log-spectral distance (lower is closer; not a perceptual score). The correct recipe scored 12.3 dB. Swapping only the mel scale from Slaney to HTK scored 33.2 dB. Raising fmax to 11,025 Hz scored 12.9 dB, barely different.
+
+<Pull>
+  On this clip, changing only the mel formula nearly tripled the log-spectral distance. Changing the
+  frequency ceiling moved it by 0.6 dB.
+</Pull>
+
+<AudioSample src="/audio/tts/mismatch-htk-mel.mp3" label="HTK mel scale into a Slaney vocoder">
+  LJ001-0009, mel computed with the HTK scale, decoded by the Slaney-trained HiFi-GAN. Log-spectral
+  distance 33.2 dB against the original. Press play.
+</AudioSample>
+
+The full mismatch table, with all four versions side by side, is in [mel recipe mismatch](/learn/100x/tts/mel-recipe-mismatch). The short version: pin every parameter in one place, and import it.
+
+Next: [why a TTS model needs a vocoder at all](/learn/100x/tts/why-tts-needs-a-vocoder), which comes down to the one thing a mel spectrogram throws away.

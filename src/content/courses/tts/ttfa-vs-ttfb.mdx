@@ -1,0 +1,115 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 21
+unit: 6
+unitTitle: 'Measure it'
+title: 'TTFA vs TTFB: time to first audio, real-time factor and latency percentiles for TTS'
+navTitle: 'TTFA vs TTFB'
+summary: 'Piper synthesised our 61 test sentences at a real-time factor of 0.037. It says nothing about when a caller hears the first sound. TTFA, TTFB, RTF and percentiles.'
+seoTitle: 'TTFA vs TTFB: Measuring TTS Latency | Mahimai'
+keywords:
+  - 'TTFA vs TTFB'
+  - 'time to first audio'
+  - 'TTS latency'
+  - 'real-time factor TTS'
+  - 'TTS latency percentiles'
+proficiency: 'Intermediate'
+faq:
+  - q: 'What is the difference between TTFB and TTFA in text-to-speech?'
+    a: 'Time to first byte is when the first bytes of the response arrive. Time to first audio is when the first chunk a speaker could actually play arrives. In a streamed audio response the first bytes can be headers or container metadata, so TTFB can look fast while the caller still hears nothing. TTFA is the number that matches what a caller experiences.'
+  - q: 'What is real-time factor in TTS?'
+    a: 'Synthesis time divided by the duration of the audio produced. Below 1 means faster than real time: an RTF of 0.25 means 4 seconds of audio take 1 second to make. It measures throughput. It does not tell you how long the first sound takes unless you also know how the system streams.'
+  - q: 'Why report TTS latency as percentiles instead of an average?'
+    a: 'Because an average hides a slow tail. Most requests can be fast while a few are many times slower, and in a conversation those slow turns are the ones callers notice. Report the median for the typical case and a high percentile such as p95 or p99 for the worst plausible case, measured over many requests, with cold starts counted separately.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Practice from '../../../components/course/Practice.astro';
+import YouTube from '../../../components/course/YouTube.astro';
+
+Piper synthesised our 61 test sentences at a real-time factor of 0.037 on a 4-core cloud container with no GPU. Our tiny model and its vocoder ran at 0.22 to 0.27. Neither number tells you when a caller would hear the first sound.
+
+We timed whole utterances, so we never measured time to first audio. This page defines the latency numbers that matter for a voice agent, shows what our timing did and did not capture, and sketches how you would measure TTFA yourself.
+
+## What is the difference between TTFB and TTFA?
+
+Time to first byte (TTFB) is when the first bytes of a response reach the client. Time to first audio (TTFA) is when the first chunk that a speaker could actually play reaches it.
+
+For a streamed audio response they can differ a lot. The first bytes are often headers and container metadata: an HTTP response header, a WAV header, the start of an Ogg or MP3 stream. None of it is audible. A server can send those almost immediately and the first playable samples much later, and a benchmark that reports TTFB is timing the first part.
+
+TTFA is the number a caller experiences. Measure it at the client, as the time from sending the text to holding the first samples you could hand to the audio device.
+
+<YouTube id="9N-5B1Vda60" title="The latency number that lies: TTFB vs TTFA" />
+
+## What does real-time factor measure?
+
+Real-time factor (RTF) is synthesis time divided by the duration of the audio produced. Below 1 is faster than real time. It is a throughput number: how much speech one machine can make per second of compute, which is why [cost per minute](/learn/100x/tts/tts-cost-and-deployment) is built on it.
+
+Our measured RTFs, all on 4 CPU cores:
+
+| System                                                                 | RTF          | Measured on                               |
+| ---------------------------------------------------------------------- | ------------ | ----------------------------------------- |
+| Piper en_US-ljspeech-medium                                            | 0.037        | 61 harness sentences                      |
+| Piper en_US-ljspeech-medium                                            | 0.052        | 3 probe sentences, 2 timed passes         |
+| Tiny model + HiFi-GAN (3 checkpoints, with and without the normaliser) | 0.22 to 0.27 | 61 harness sentences, per checkpoint      |
+| HiFi-GAN alone, one 7.55 s clip                                        | 0.19 to 0.27 | across runs; 0.27 was the first, cold run |
+
+Two things show even here. The same voice gave different RTFs on different test sets, so quote the one that matches the test. And the slowest vocoder run was the first one: cold starts belong in their own column, never averaged into the warm numbers.
+
+RTF becomes a latency only through arithmetic about how the system streams. If a system waits for the whole utterance before sending anything, the first sound arrives after roughly RTF times the reply length. Worked arithmetic, with no measurement behind it: a 5-second reply at an RTF of 0.25 would take about 1.25 seconds before any audio exists. A system that streams can start playing long before that, and then RTF only has to stay below 1 so playback never catches up with synthesis. [Streaming and serving](/learn/100x/tts/tts-streaming-serving) covers how the chunking works.
+
+## Why did we not measure TTFA?
+
+Because our [eval harness](/learn/100x/tts/tts-eval-harness) times the whole synthesis call. From the eval script:
+
+```python
+t0 = time.perf_counter()
+audio, sr = synth(text)
+el = time.perf_counter() - t0
+```
+
+`synth` returns the complete waveform. For the tiny model that is the right shape anyway: it predicts the full mel spectrogram, then [HiFi-GAN](/learn/100x/tts/what-is-a-neural-vocoder) renders all of it, so nothing is playable until the end. For Piper, our wrapper collected every chunk and concatenated them before returning, which throws the first-chunk time away. The harness then divides total synthesis time by total audio time. The result is one aggregate RTF per system: no per-request latency, no TTFA, no percentiles.
+
+## Why do latency percentiles matter?
+
+Because an average hides the slow requests, and in a conversation the slow turns are the ones people notice. Google's [SRE book](https://sre.google/sre-book/service-level-objectives/) puts it directly: averaging latencies "obscures an important detail: it's entirely possible for most of the requests to be fast, but for a long tail of requests to be much, much slower."
+
+The same chapter recommends reading the distribution: the 50th percentile for the typical case and a high percentile, such as the 99th, for "a plausible worst-case value". It also notes that "people typically prefer a slightly slower system to one with high variance in response time."
+
+For TTS that means reporting TTFA at p50 and p95 or p99, over enough requests for the tail to mean something, from the client's side of the network and in the region you deploy to. Separate warm and cold requests. Our data has none of this: a single aggregate RTF per system has no distribution to take percentiles of.
+
+## How would you measure time to first audio?
+
+Time the first playable chunk, per request, over many requests, and keep every sample. Piper's Python API returns an iterator: its [documentation](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/API_PYTHON.md) streams with `for chunk in voice.synthesize("...")`, and each chunk carries `audio_int16_bytes`. That is enough for an in-process TTFA.
+
+This sketch is illustrative. We did not run it, and it produced none of the numbers on this page:
+
+```python
+# Illustrative sketch, not run: in-process time to first audio with Piper.
+import time
+import numpy as np
+from piper import PiperVoice
+
+voice = PiperVoice.load("en_US-ljspeech-medium.onnx")
+list(voice.synthesize("warm up"))  # keep the cold start out of the warm numbers
+
+def ttfa(text: str) -> float:
+    t0 = time.perf_counter()
+    for chunk in voice.synthesize(text):
+        if chunk.audio_int16_bytes:
+            return time.perf_counter() - t0
+
+samples = [ttfa(t) for t in test_sentences for _ in range(20)]
+print(np.percentile(samples, [50, 95, 99]))
+```
+
+Over a network, move the timer to the client: start it when the request is sent and stop it at the first bytes that decode to samples, after any headers. Record TTFB beside it, so the gap between the two is visible.
+
+<Practice label="Latency claims">
+  Never accept a single latency number. Ask which event stops the clock (first byte or first audio),
+  which percentile, measured from where, warm or cold, and over how many requests.
+</Practice>
+
+Next: [hallucinations](/learn/100x/tts/tts-hallucinations), where Whisper heard our model say "your order number is." with the number gone.

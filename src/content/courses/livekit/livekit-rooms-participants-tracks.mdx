@@ -1,0 +1,107 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 2
+unit: 1
+unitTitle: 'Foundations'
+title: 'LiveKit rooms, participants, tracks, and agent jobs: the object model'
+navTitle: 'Rooms, participants, tracks, and jobs'
+summary: 'One call, one room, one job, one agent process. When those four counts stop agreeing, something has leaked. The LiveKit object model, mapped to a real voice call.'
+seoTitle: 'LiveKit Rooms, Participants, Tracks and Agent Jobs | Mahimai'
+keywords:
+  - 'LiveKit rooms'
+  - 'LiveKit participants'
+  - 'LiveKit tracks'
+  - 'LiveKit agent jobs'
+  - 'LiveKit metadata'
+proficiency: 'Beginner'
+faq:
+  - q: 'What is the difference between a LiveKit room and an agent job?'
+    a: 'A room is the session where participants exchange media. A job is the agents framework unit of work: the server dispatches it to a registered worker, which spawns a process that joins the room. For a voice agent there is one job per room, and the worker tier counts and schedules jobs.'
+  - q: 'Where should the caller number go in LiveKit?'
+    a: 'In participant or room metadata, set when the participant or room is created. Transcripts, billing and debugging all join on that metadata, so decide its shape before the first production call.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import Practice from '../../../components/course/Practice.astro';
+import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
+
+One phone call to your agent is four kinds of object in LiveKit: a room, two participants, a track from each, and one job.
+
+Every API call, every webhook, and every debugging session is spoken in those four words. Learn them against a single voice call and you can read any LiveKit log line, and you will also know the one mapping that turns a vague "something is leaking" into a specific bug report.
+
+## What is a LiveKit room?
+
+A room is a named session. Participants in the same room exchange media, and participants in different rooms never do, so for a voice agent one phone call is one room.
+
+Rooms are created in one of two ways. Your backend can create them explicitly through the API, or the server creates one implicitly when the first participant joins (either way, a room closes when it is empty).
+
+That second path is convenient and slightly dangerous. A typo in a room name does not fail: it quietly creates a new room, and whoever joins it waits for participants who went somewhere else.
+
+## Participants: the caller, the agent, and the metadata
+
+A participant is one connected identity in a room, holding a connection to the SFU, and in a voice call there are usually exactly two:
+
+- **The caller.** A browser user joins as a participant directly. A phone caller arrives as a participant created by the SIP service, which bridges the carrier's audio into the room.
+- **The agent.** Your agent joins as another participant, the same way a browser would.
+
+Each participant carries an identity string and metadata you control. That metadata is where the caller number and the campaign ID belong, and because you set it at creation, everything downstream (transcripts, billing, debugging) joins on it.
+
+## Tracks and subscriptions
+
+A track is one audio or video stream that a participant publishes. Other participants subscribe to it. Nothing flows until someone subscribes.
+
+Here is what a voice call looks like in tracks:
+
+1. The phone caller publishes one audio track.
+2. Your agent subscribes to it, and that is the audio your STT hears.
+3. The agent publishes its own audio track: the TTS output.
+4. The caller's side subscribes to the agent's track, and that is what the caller hears.
+
+Subscriptions are the unit of media routing. Selective subscription is how large rooms stay cheap, because a participant only receives what it asked for. In a two-party voice call you rarely think about it. Then one subscription goes missing, and the call is one-way.
+
+## Jobs: what the worker tier counts
+
+A job is the agents framework's unit of work. When a room needs an agent, the server dispatches a job to a registered worker, which spawns a process that joins the room and runs your entrypoint.
+
+Dispatch can be automatic (every new room gets an agent) or explicit, where your backend or the caller's access token names which agent to send. LiveKit's [agent dispatch guide](https://docs.livekit.io/agents/server/agent-dispatch/) recommends explicit dispatch for most applications, because it lets you pass job metadata to the agent. The [job lifecycle docs](https://docs.livekit.io/agents/server/job/) cover what happens inside the process after that.
+
+The job, rather than the room, is what the worker tier counts and schedules on, and that distinction becomes very concrete in [the worker lifecycle lesson](/learn/100x/livekit/livekit-agent-worker-lifecycle), where load reporting and draining are all per job.
+
+<CourseFigure
+  id="lk-object-model"
+  title="One voice call in LiveKit: a room holding the caller and agent participants, each publishing an audio track the other subscribes to, and the server dispatching a job to a worker whose agent process joins the room as the agent participant."
+>
+  One call is one room. The caller and the agent each publish one audio track and subscribe to the
+  other's. The job path we highlight is the one the worker tier counts.
+</CourseFigure>
+
+## One call, one room, one job, one process
+
+For voice, the four counts should always agree. Count the live rooms, the active jobs, and the agent processes on your workers: in a healthy fleet, the numbers match.
+
+When they stop matching, the mismatch tells you where to look:
+
+| What you see             | What it usually means                             |
+| ------------------------ | ------------------------------------------------- |
+| A room with no job       | Dispatch never happened, or no worker accepted it |
+| A job outliving its room | The job never reported that it finished           |
+| More processes than jobs | Processes are not exiting after the call ends     |
+
+<Pull>
+  When the four numbers stop agreeing (a room with no job, a job outliving its room), the
+  disagreement is the bug report.
+</Pull>
+
+[Unit 3](/learn/100x/livekit#unit-3) has two lessons on exactly those cases: [the shutdown leak](/learn/100x/livekit/livekit-agent-shutdown-leak) is a job outliving its room, and [the load threshold](/learn/100x/livekit/livekit-worker-load-threshold) is a worker that stays registered but stops being offered jobs.
+
+<Practice label="Before your first production call">
+  Spend ten minutes on metadata design on day one, because the participant and room metadata you
+  attach at creation is what every downstream system (transcripts, billing, debugging) joins on.
+  Skip it and you end up matching calls to CRM records by timestamp, which fails exactly when volume
+  is high enough to matter.
+</Practice>
+
+Next: [run your first voice agent locally](/learn/100x/livekit/livekit-voice-agent-tutorial) and watch these four objects appear in real time.

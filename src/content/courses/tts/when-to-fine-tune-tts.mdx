@@ -1,0 +1,92 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 24
+unit: 7
+unitTitle: 'Adapt and ship'
+title: 'When to fine-tune a TTS model, and the cheaper fixes to try first'
+navTitle: 'When to fine-tune'
+summary: 'Our model drops every digit you give it, and no amount of training fixes that. How to tell a front-end problem from a distribution problem before you pay for a run.'
+seoTitle: 'When to Fine-Tune a TTS Model | Mahimai'
+keywords:
+  - 'when to fine-tune TTS'
+  - 'TTS fine-tuning'
+  - 'pronunciation dictionary'
+  - 'text normalisation'
+  - 'custom TTS voice'
+proficiency: 'Intermediate'
+faq:
+  - q: 'When should you fine-tune a text-to-speech model?'
+    a: 'Fine-tune when the failure is systematic and distributional: a dialect or accent the base model renders as its majority neighbour, a specific voice that has to hold steady over long sessions, or a domain register where rhythm and vocabulary are jointly unusual. If the failures are individual words or number formats, fix them with normalisation or a pronunciation dictionary first.'
+  - q: 'What is the fix-ten-by-hand test?'
+    a: 'Take the failure list, fix ten items by hand with a normaliser rule or dictionary entry, and run the list again. If it gets shorter and stays short, you have a dictionary problem. If new failures keep appearing at the same rate, you have a distribution problem, which is what fine-tuning addresses.'
+  - q: 'Can more training steps fix mispronounced numbers?'
+    a: 'Not if the text front end removes them. Our tiny model keeps only the letters a to z, the apostrophe and the space, so digits never reach it. Training longer changes nothing about that; a normaliser that spells numbers out does.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Practice from '../../../components/course/Practice.astro';
+
+Hand our tiny model the sentence "call me at 5 pm" and the 5 is gone before the first layer runs. We trained it for 2,200 steps on a 4-core cloud container with no GPU, and no number of extra steps would bring the digit back. The fix belongs in the text front end.
+
+That is the argument of this page in miniature. Fine-tuning is the most expensive lever you have, so it should be the last one you pull. By the end you will have an escalation order for TTS fixes and a single test that tells you whether a failure needs training data at all.
+
+## Why can't training fix every TTS error?
+
+Because many errors happen before the model sees anything. If the text front end deletes, mangles or misreads a token, the acoustic model is faithfully speaking the wrong input.
+
+Here is the tokenizer we actually ran, from `common.py`:
+
+```python
+SYMBOLS = ["<pad>", " ", "'"] + [chr(c) for c in range(ord("a"), ord("z") + 1)]
+SYM2ID = {s: i for i, s in enumerate(SYMBOLS)}
+
+def encode(text: str) -> list[int]:
+    return [SYM2ID[c] for c in text if c in SYM2ID]
+```
+
+Anything outside those 29 symbols is silently dropped. Digits, currency signs and punctuation all vanish. We made that choice on purpose to keep the model small, and it shows how large the front end's share of the work is. In the raw LJSpeech metadata, 1,505 of 13,100 clips (11.5%) have a transcript that differs from the normalised one, and 1,489 of those contain digits. The dataset ships a normalised column alongside the raw one; its [dataset page](https://keithito.com/LJ-Speech-Dataset/) describes it as numbers, ordinals and monetary units expanded into words.
+
+More steps did not improve held-out mel L1 either. Validation mel L1 went from 0.4268 at step 1,650 to 0.4282 at step 2,200, and mean output WER on our three probes moved from 0.21 to 0.35 over the same stretch. With 0.74 h of audio, the model had stopped learning anything the front end could not have given it for free. [Training from scratch](/learn/100x/tts/train-tts-model-from-scratch) has the full curve.
+
+## What should you try before fine-tuning a TTS model?
+
+Try the cheap levers in order of cost, and re-run your evaluation after each one:
+
+1. **Text normalisation.** Numbers, dates, units, codes and abbreviations expanded into speakable words. Most number and date misreadings end here. See [text normalisation](/learn/100x/tts/text-normalisation-tts).
+2. **Pronunciation dictionaries.** A product name or drug name gets a phonetic entry. This only works if the model takes phoneme input or exposes an override; NeMo's [G2P documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/g2p.html) notes that phonetic input lets you "enforce the desired pronunciation" at inference time.
+3. **Model controls.** Speaking rate, emphasis and style tags, where the model has them.
+4. **A different stock voice or model.** Auditioning a handful of existing voices through your real audio path, including the telephone path, is cheaper than any training run.
+
+Each of these is measured in minutes or hours of engineering. A fine-tune is measured in data collection, compute and a new evaluation cycle.
+
+## What is the fix-ten-by-hand test?
+
+Take your list of failures, fix ten of them by hand with a normaliser rule or a dictionary entry, and run the list again. The result sorts the problem into one of two kinds.
+
+**The list gets shorter and stays short.** You have a dictionary problem. The failures were individual items, and each fix removed one. Keep fixing by hand; it scales linearly with the number of words you care about, and that number is usually finite.
+
+**New failures keep arriving at the same rate.** You have a distribution problem. The model has not learned a pattern, so every new sentence exposes another instance of it. No per-word fix catches up with an unbounded list.
+
+Our digit-dropping model sits on the first branch. A normaliser that turns "5" into "five" roughly halved its hard-set WER (64.4% to 35.6% at step 1,650), because the letters were always in the model's vocabulary. It left phone numbers, leading zeros and "pm" wrong: those need a better normaliser, not a fine-tune.
+
+## When does fine-tuning actually earn its cost?
+
+Fine-tuning earns its cost when the failure is systematic and the fix has to live in the weights. The common cases:
+
+- **A language, dialect or accent** that the base model renders as its majority neighbour. A dictionary entry cannot change a vowel system or a rhythm.
+- **One specific voice** that has to stay stable across long sessions, beyond what prompt-based cloning holds. [Voice cloning vs fine-tuning](/learn/100x/tts/voice-cloning-vs-fine-tuning) compares the two.
+- **A domain register** such as clinical dictation or legal citation, where vocabulary and rhythm are unusual together.
+- **A data boundary.** The audio or the voice cannot leave your infrastructure, which rules out hosted voices whatever their quality, and leaves an open model you adapt yourself.
+
+Even then, write the acceptance bar before you train: a target output WER on a test set built from the failures, a listening sign-off, and a latency ceiling. The [eval harness](/learn/100x/tts/tts-eval-harness) is where those numbers come from.
+
+<Practice label="Sort your failure list">
+  Collect twenty real failures from your agent's logs. Tag each one as front end (number, date,
+  symbol, abbreviation), single word (a name the model mispronounces) or pattern (accent, rhythm,
+  register). Fix the first two groups by hand and re-run. Whatever is left in the third group is
+  your case for fine-tuning.
+</Practice>
+
+Next: [LoRA for TTS fine-tuning](/learn/100x/tts/lora-tts-fine-tuning), the adaptation method to reach for once the test says you need one.

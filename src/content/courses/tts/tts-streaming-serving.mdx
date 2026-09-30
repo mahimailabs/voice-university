@@ -1,0 +1,99 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 27
+unit: 7
+unitTitle: 'Adapt and ship'
+title: 'TTS streaming and serving: chunking, longform, batching and quantisation'
+navTitle: 'Streaming and serving'
+summary: 'Piper ran at 19x real time on our CPU, yet we never measured when its first audio arrived. What streaming, sentence chunking and batching change, and how to time it.'
+seoTitle: 'TTS Streaming and Serving: Chunking and Batching | Mahimai'
+keywords:
+  - 'streaming TTS'
+  - 'TTS serving'
+  - 'longform TTS'
+  - 'sentence chunking TTS'
+  - 'TTS quantisation'
+proficiency: 'Advanced'
+faq:
+  - q: 'What is streaming TTS?'
+    a: 'Streaming TTS returns audio in chunks while the rest of the utterance is still being synthesised, so playback can start before synthesis finishes. What matters for a voice agent is the time to the first playable chunk, not the time to the whole utterance.'
+  - q: 'How does Magpie-TTS handle long text?'
+    a: 'According to the NeMo documentation, Magpie-TTS switches to longform inference at roughly 20 seconds of audio, which is about 45 words in English. It splits the text into sentences, keeps state such as history text tokens and attention tracking across sentences for continuity, then concatenates the codes and decodes them with the codec.'
+  - q: 'Does quantising a TTS model reduce quality?'
+    a: 'It can, and the damage tends to show up on hard inputs first. Measure it: run your fixed evaluation set through the quantised model and compare output WER and a listening check against the full-precision model before shipping.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
+import Practice from '../../../components/course/Practice.astro';
+
+Piper synthesised our three probe sentences at a real-time factor of 0.052 on a 4-core cloud container with no GPU, about 19 times faster than real time. We still do not know when its first audio was ready, because our timer only stopped after the last chunk. That gap between throughput and first audio is what serving a TTS model is about.
+
+By the end of this page you will know how to measure the number an agent actually waits on, how sentence chunking and longform inference hide synthesis time, and what batching and quantisation trade away.
+
+## What does streaming TTS change?
+
+Streaming returns audio in pieces while synthesis continues, so a caller hears the first chunk before the last one exists. For a voice agent that turns the wait from "time to synthesise the whole reply" into "time to synthesise the first piece".
+
+Piper's [Python API](https://github.com/OHF-voice/piper1-gpl/blob/main/docs/API_PYTHON.md) already yields audio in chunks: `voice.synthesize(text)` is an iterator. Here is how we timed it in `compare_piper.py`:
+
+```python
+t0 = time.perf_counter()
+chunks = list(voice.synthesize(text))
+el = time.perf_counter() - t0
+```
+
+`list()` drains the iterator, so `el` is the time for every chunk. Divided by the audio duration, that gives the real-time factor we reported: whole-utterance throughput. It says nothing about time to first audio (TTFA), and we did not measure TTFA for any system. To time it, you would stop a clock at the first `next()` on the iterator instead, and repeat that under load. [TTFA vs TTFB](/learn/100x/tts/ttfa-vs-ttfb) covers the definitions and why percentiles matter more than means.
+
+Our own cascade shows where streaming effort should go. For the tiny model plus HiFi-GAN, the acoustic model took 3.6% of synthesis time and the vocoder the other 96.4%, at a whole-utterance real-time factor of 0.24. A streaming version of that pipeline lives or dies on how early the vocoder can start on the first frames of mel. HiFi-GAN is convolutional, so in principle it can decode a window of mel frames as they arrive, with some overlap to hide the seams; we did not build or measure that. [What is a neural vocoder](/learn/100x/tts/what-is-a-neural-vocoder) has the vocoder timings.
+
+## How does sentence chunking hide synthesis time?
+
+Split the reply into sentences, synthesise the first one, and start playing it while the next ones are synthesised. As long as each chunk finishes before the previous one has played out, the caller hears continuous speech and waits only for the first sentence.
+
+<CourseFigure
+  id="tts-streaming-longform"
+  title="Long text is split into sentence chunks. The first chunk is synthesised and starts playing while the remaining chunks are synthesised in the background."
+>
+  The caller waits for the first chunk only. Every later chunk has the playback time of the chunks
+  before it to finish in.
+</CourseFigure>
+
+A real-time factor below 1 is the condition that makes this work. At 0.052, one second of Piper audio took about 52 ms to produce on our container; at 0.24, one second from our cascade took about 240 ms. Both leave headroom for one stream at a time, and both were measured at concurrency one, in our sequential timing loop.
+
+Chunking has a cost at the boundaries. Each sentence synthesised alone loses the prosody that would have carried across from the one before. Short first chunks lower the wait but give the model less context to shape intonation.
+
+## How does Magpie-TTS handle longform text?
+
+NeMo's [Magpie-TTS longform documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/magpietts-longform.html) describes the same chunking idea built into the model's inference. Longform mode activates at roughly 20 seconds of audio, with thresholds that differ by language:
+
+| Language   | Longform threshold (words) |
+| ---------- | -------------------------- |
+| English    | 45                         |
+| German     | 50                         |
+| Vietnamese | 50                         |
+| Italian    | 53                         |
+| French     | 69                         |
+| Spanish    | 73                         |
+
+Text is split at sentence punctuation, with handling for abbreviations so "Dr. Smith" stays in one sentence. A `LongformChunkState` object carries history text tokens, encoder outputs and attention tracking from one sentence to the next, which is how the model keeps prosody continuous across chunks. The generated codes are concatenated and decoded by the codec at the end. The docs recommend automatic mode detection, note that English is best supported, and say Mandarin currently falls back to standard inference.
+
+The docs frame longform mode around prosodic continuity. We read it as touching a failure from the [hallucinations lesson](/learn/100x/tts/tts-hallucinations) too: each decoding pass works on one sentence with tracked attention, rather than one pass over a whole passage in which an autoregressive model could skip or repeat.
+
+## What do batching and quantisation trade away?
+
+Batching raises throughput and raises tail latency. Quantisation lowers memory and compute per request and can lower quality. Both need measuring on your hardware, and we measured neither.
+
+**Batching** matters most on a GPU. A GPU serving one request at a time leaves most of its capacity idle; grouping requests, or admitting new ones into a running batch as others finish, lets one forward pass serve many callers. The cost is that each request may wait for a batch to form and runs alongside others, so p95 latency rises as batch size grows. Pick the operating point deliberately, and measure real-time factor at your target concurrency. Our figures were taken one request at a time, by our sequential timing loop, and they are not a capacity number.
+
+**Quantisation** stores weights at lower precision. Speech models can lose quality in ways a short listening test misses, because the damage tends to appear first on the hard inputs: numbers, long sentences, rare names. The check is the one you already built: run the fixed set through the [eval harness](/learn/100x/tts/tts-eval-harness) and compare output WER against full precision. Also check where the time goes before you quantise. In our cascade, making the acoustic model twice as fast would save at most 1.8% of synthesis time (the split is in [what is a neural vocoder](/learn/100x/tts/what-is-a-neural-vocoder)).
+
+<Practice label="Time the first chunk">
+  Take any streaming TTS iterator, stop one clock at the first chunk and another at the last, and
+  run it 50 times at your target concurrency. Report p50 and p95 for both. If you only have the
+  second number, you have measured throughput, and your agent is waiting on the first.
+</Practice>
+
+Next: [TTS cost and deployment](/learn/100x/tts/tts-cost-and-deployment), where the real-time factor becomes a cost per minute.

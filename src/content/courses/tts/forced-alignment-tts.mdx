@@ -1,0 +1,121 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 8
+unit: 2
+unitTitle: 'The dataset'
+title: 'Forced alignment for TTS: durations and a data filter from one pass'
+navTitle: 'Forced alignment'
+summary: 'Of 88 clips with a number in the first 571 we aligned, 86.4% failed our filter, against 7.7% of the rest. One CTC pass gave us durations to train on and a data filter.'
+seoTitle: 'Forced Alignment for TTS: MMS CTC on CPU | Mahimai'
+keywords:
+  - 'forced alignment TTS'
+  - 'CTC forced alignment'
+  - 'MMS aligner torchaudio'
+  - 'phoneme durations TTS'
+  - 'TTS data filtering'
+  - 'alignment confidence score'
+proficiency: 'Intermediate'
+faq:
+  - q: 'What is forced alignment in TTS?'
+    a: 'Forced alignment takes an audio clip and its known transcript and finds when each symbol is spoken. For TTS it gives two things: a duration per symbol, which duration-based models like FastSpeech train on, and a confidence score per clip, which flags clips whose transcript probably does not match the audio.'
+  - q: 'How fast is MMS forced alignment on a CPU?'
+    a: 'On a 4-core cloud container with no GPU, torchaudio MMS_FA aligned LJSpeech at 8.4 times real time in a 20-clip timing run with nothing else competing for the CPU. At that speed the full 23.9-hour corpus would take about 2.9 hours. We aligned the first 571 clips for this build.'
+  - q: 'Why do clips with numbers fail alignment?'
+    a: 'Our reading: the aligner scores the audio against the spelled-out transcript, and when the reader said a number differently from how the normalised text spells it, the letters do not match the sounds. In our 571-clip run, 86.4% of clips whose raw text had digits scored below 0.9, against 7.7% of clips without digits. That points at the spelled-out form; it does not prove it.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
+
+We aligned the first 571 LJSpeech clips. Of the 88 whose raw transcript contained a number, 86.4% failed our alignment confidence filter. Of the clips without one, 7.7% did. The same pass that produced those scores also produced the thing our model trains on: how many 11.6 ms mel frames each letter lasts.
+
+This page shows how CTC forced alignment works, how we turned its output into training durations, how fast it ran on a CPU, and what the filter caught.
+
+## What is forced alignment?
+
+Forced alignment is finding when each symbol of a known transcript is spoken in an audio clip. A speech recogniser has to guess the words; an aligner is told them, and only has to place them in time.
+
+For TTS that placement is valuable twice. A duration-based model such as ours or [FastSpeech](/learn/100x/tts/tts-duration-prediction) needs a target for how long each symbol lasts, and the aligner's spans are that target. The aligner also reports how confident it was, which turns it into a check on whether the transcript and audio agree.
+
+We used torchaudio's `MMS_FA` pipeline, an aligner from Meta's Massively Multilingual Speech project ([Pratap et al., 2023](https://arxiv.org/abs/2305.13516)). The [torchaudio documentation](https://docs.pytorch.org/audio/stable/generated/torchaudio.pipelines.MMS_FA.html) describes it as trained on 31K hours of data in 1,130 languages, and states its weights are CC-BY-NC 4.0, a non-commercial license. The [licensing lesson](/learn/100x/tts/tts-dataset-licensing) covers what that means for a pipeline like ours.
+
+It is pretrained, and we did not train our own. An aligner is an acoustic model in its own right; training one is a separate project with its own data, and the point here is the TTS model it feeds.
+
+## How does CTC forced alignment work?
+
+CTC forced alignment runs the audio through a recogniser to get, for every short frame, a probability for each letter plus a "blank"; it then finds the single path through those frames that spells the transcript in order with the highest total probability. Each letter ends up owning a span of frames, with a score.
+
+In `align.py` that is three calls (key lines, lightly condensed). The audio is resampled to the aligner's 16 kHz first; the original stays at 22,050 Hz for everything else.
+
+```python
+# align.py
+wav16 = F.resample(wav, sr, fa_sr)
+with torch.inference_mode():
+    emission, _ = model(wav16)
+    emission = torch.log_softmax(emission, dim=-1)
+ali, scores = F.forced_align(emission, torch.tensor([tokens], dtype=torch.int32), blank=0)
+spans = F.merge_tokens(ali[0], scores[0].exp())
+```
+
+`merge_tokens` collapses the frame-by-frame path into one span per letter, each with a start, an end and a confidence between 0 and 1. The torchaudio [forced alignment tutorial](https://docs.pytorch.org/audio/stable/tutorials/ctc_forced_alignment_api_tutorial.html) walks through the same calls in more detail. That page now carries a maintenance notice about these APIs; they ran for us on torchaudio 2.11, so pin the version you test with.
+
+## How do letter spans become mel-frame durations?
+
+Letter spans become durations by converting the aligner's 20 ms frames into the vocoder's 256-sample hops (11.6 ms at 22,050 Hz), and by giving every mel frame to exactly one input symbol. Letters own their aligned span; each space owns the gap up to the next letter, pauses included; the padding spaces at either end absorb leading and trailing silence.
+
+<CourseFigure
+  id="tts-alignment-durations"
+  title="Audio and transcript go into the MMS aligner, which returns letter spans; the spans are converted to mel-frame durations that the length regulator uses to stretch each symbol."
+>
+  One aligner pass turns a clip and its transcript into a mel-frame count for every symbol.
+</CourseFigure>
+
+Converting 20 ms frames to 11.6 ms frames means rounding, and rounding each symbol separately drifts. So we round the cumulative end times instead and pin the last one to the clip's mel length:
+
+```python
+# align.py
+cum = [0] + [to_mel(e) for (_, e) in durs_frames]
+cum[-1] = n_mel
+cum = np.maximum.accumulate(np.minimum(cum, n_mel))
+durs = np.diff(cum).astype(int).tolist()
+```
+
+The result is that every clip's durations sum exactly to its mel length. The training prep asserts it against a freshly computed mel before it saves anything (see [the data manifest](/learn/100x/tts/tts-data-manifest)).
+
+## How fast is forced alignment on a CPU?
+
+On a 4-core cloud container with no GPU, MMS_FA aligned LJSpeech at 8.4 times real time. That figure comes from a 20-clip timing run with nothing else on the machine. At that rate a full pass over all 23.9 hours would take about 2.9 hours.
+
+We did not run the full pass. For this build we aligned the first 571 clips, a stated subset, which is enough to train a teaching model and to see the filter at work.
+
+## What does the alignment filter catch?
+
+The filter catches clips where the aligner struggled to match the transcript to the audio. We kept clips whose mean letter confidence was at least 0.9, then dropped any clip where one symbol was held for more than 120 mel frames (about 1.4 s), a sign of a broken alignment.
+
+<CourseFigure
+  id="tts-filter-funnel"
+  title="Filter funnel: 571 clips attempted, 571 aligned, 458 with mean letter confidence of at least 0.9, 458 with no symbol held longer than 1.4 seconds; clips with digits fail far more often than clips without."
+>
+  571 attempted, 571 aligned, 458 kept after the confidence filter, 458 after the runaway-duration
+  check.
+</CourseFigure>
+
+Every clip aligned; the confidence filter removed 113 (19.8%); the runaway-duration check removed none after that. Where the 113 came from is the interesting part:
+
+| Clips (of 571)                 | Count | Below 0.9 | Median score |
+| ------------------------------ | ----- | --------- | ------------ |
+| Raw transcript contains digits | 88    | 86.4%     | 0.786        |
+| No digits                      | 483   | 7.7%      | 0.968        |
+
+All ten lowest-scoring clips contain numbers. LJ002-0013 is one of them. Its raw text reads "till, 1808, the lowest point was touched of 197 debtors and 182 felons, or 379 in all", and the normalised transcript the aligner sees spells that out as "eighteen oh eight", "one hundred ninety-seven debtors" and so on.
+
+<Pull>
+  The aligner flagged clips with numbers eleven times as often as clips without: 86.4% against 7.7%.
+</Pull>
+
+Our reading of that gap: when the reader said a number differently from how the normalised transcript spells it, the aligner is scoring the audio against letters that were never spoken. We cannot confirm the spoken form automatically, because a recogniser such as Whisper writes numbers back as digits. So the finding points at transcript mismatch on numbers; it does not prove it. Either way, the practical answer is the same: those clips should not train a duration model as they are.
+
+It also tells you where the front end will hurt. [Text normalisation](/learn/100x/tts/text-normalisation-tts) is the next unit, and numbers are where it starts.

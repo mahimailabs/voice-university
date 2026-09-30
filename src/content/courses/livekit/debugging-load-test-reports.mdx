@@ -1,0 +1,85 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 18
+unit: 4
+unitTitle: 'Load testing voice agents'
+title: 'Debugging load test reports: when the measurement tool is wrong'
+navTitle: 'When your own report lies'
+summary: 'A verdict that failed every run, a capacity figure twelve times too low, 1,423 gate rows holding 169 facts. Three bugs in our own report, none in the data.'
+seoTitle: 'Debugging Load Test Reports: When the Tool Is Wrong | Mahimai'
+keywords:
+  - 'load test report'
+  - 'debugging load test results'
+  - 'measurement bugs'
+  - 'capacity report'
+proficiency: 'Advanced'
+faq:
+  - q: 'Why does a resource check fail right after a load test ends?'
+    a: 'Teardown is still running. Memory and file descriptors from the last calls are being released for some time after the final call ends, so a before-and-after comparison taken too early measures normal cleanup as a regression. Define a settle period as part of the check.'
+  - q: 'Can you read per-node capacity from a single load generator?'
+    a: 'Not when several generator processes run in parallel. One process only sees its own share of the calls, so its concurrency understates what the node carried. Aggregate across generators, or have the tool refuse to derive a per-node figure.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import Practice from '../../../components/course/Practice.astro';
+
+Every run came back FAIL. Including the runs where nothing was wrong.
+
+The same reports printed a capacity figure twelve times too low and a failure count that repeated the same facts over and over. The fleet was fine in all three cases. The tool was wrong, and we wrote the tool.
+
+Bugs like these survive for a long time because nobody suspects the ruler. When a load test disagrees with expectations, the first instinct is to debug the system under test, and every hour spent there is an hour the report goes unquestioned. Here are the three defects, what each looked like from the outside, and the fix we shipped. If you run your own load harness, you probably have at least one of them.
+
+| Defect                     | What the report showed      | Root cause                                     | Fix                                          |
+| -------------------------- | --------------------------- | ---------------------------------------------- | -------------------------------------------- |
+| Verdict that always failed | FAIL on every run           | Resource check sampled during teardown         | A defined settle period before sampling      |
+| Capacity twelve times low  | "Carries at least 51 calls" | One generator's concurrency read as the node's | Refuse to derive capacity from parallel rows |
+| Repeating failure count    | 1,423 gate rows             | Each fact counted once per generator process   | Count distinct subject and value pairs       |
+
+## The verdict that failed every run
+
+The top-line verdict read FAIL on every run, passing or not, because a resource check was measuring normal cleanup and calling it a regression.
+
+The check sampled memory and file descriptors about a minute after the last call ended and compared them against the run's baseline. A minute after a run ends, teardown is still in progress: processes are exiting, descriptors are closing, memory is on its way back down. Any snapshot taken in that window looks like a leak.
+
+We fixed it by making the settle period part of the check itself and sampling only after it. The inputs were never the problem. Memory and descriptor counts read from `/proc` ([smaps_rollup](https://docs.kernel.org/filesystems/proc.html) for PSS, [the fd directory](https://man7.org/linux/man-pages/man5/proc_pid_fd.5.html) for descriptors) were accurate, but they were read at the wrong moment.
+
+This one matters more than it looks. Once a headline is always wrong, people stop reading it, and then it cannot warn them about anything. A gate that never passes is worse than no gate at all.
+
+## The capacity number twelve times too low
+
+The report printed "carries at least 51 calls" for a run that carried 612 across the fleet, because it mistook one generator process for the whole rig.
+
+Several generator processes ran in parallel, each holding its own share of the calls, and 51 was the concurrency of a single one of them, and the tool took that process's number for the node's capacity. Anyone sizing from the figure would have over-provisioned twelve to one.
+
+The tool now refuses to derive per-node capacity from parallel generator rows, and it reports what it measured and no longer prints what it inferred.
+
+A derived number has to know the shape of the rig that produced it, so if your [load testing rig](/learn/100x/livekit/voice-agent-load-testing) runs several generators in parallel, every aggregation downstream needs to know that too.
+
+## The failure count that repeated itself
+
+A report showed 1,423 gate rows for a run that had about 169 distinct things to report, because every measurement was counted once per generator process.
+
+The count therefore scaled with how many generators happened to run, not with anything the fleet did: double the generators and the failure list would double, with no change in the system under test.
+
+The fix is to count distinct subject and value pairs. A re-render of an old run now reads lower and is more accurate, which is a strange thing to ship and the right thing to ship.
+
+<Pull>
+  All three defects were derivations over correct measurements. The raw numbers were never wrong.
+</Pull>
+
+## How to audit your own measurement tool
+
+When a report and a fleet disagree, the bug can be in either one. Give your measurement stack one adversarial pass where you assume the tool is the defendant:
+
+1. **Separate measured from derived.** Mark every number in the report as one or the other. Derived numbers are where all three of our bugs lived.
+2. **Let derived numbers fail loudly.** If the tool cannot compute a figure correctly from the rows it has, it should say so and print nothing.
+3. **Put the settle period in the check.** Any before-and-after comparison needs a defined wait after load stops.
+4. **Give every aggregation an identity.** Deduplicate by subject and value, or your counts are a function of how many processes you ran.
+5. **Check the clock.** Grouping by end time instead of start time [inverted a failure curve](/learn/100x/livekit/load-test-time-bucketing) on the same project.
+
+Ours needed three convictions before the reports could be trusted, and every capacity number in [the capacity model](/learn/100x/livekit/voice-capacity-model) depends on that trust.
+
+Next: [port exhaustion](/learn/100x/livekit/livekit-port-exhaustion), the first ceiling the corrected reports found, and why it arrives before CPU.

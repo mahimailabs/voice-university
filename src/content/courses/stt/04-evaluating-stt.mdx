@@ -1,0 +1,98 @@
+---
+course: 'stt'
+courseTitle: 'STT Model'
+order: 4
+title: 'Evaluating STT'
+summary: 'WER as an honest number rather than a marketing one, the streaming timing metrics no vendor page volunteers, and the eval harness that turns provider selection from vibes into evidence.'
+lessons:
+  - { n: 11, title: 'WER honestly: normalisation, variance, and entity errors' }
+  - { n: 12, title: 'Streaming metrics: partials, finalisation, and revision' }
+  - { n: 13, title: 'Building an STT eval harness' }
+status: 'ready'
+updatedDate: 2026-08-19
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import Practice from '../../../components/course/Practice.astro';
+import Figure from '../../../components/course/Figure.astro';
+import YouTube from '../../../components/course/YouTube.astro';
+import WerDistribution from '../../../components/course/figures/WerDistribution.astro';
+
+## 11. WER honestly: normalisation, variance, and entity errors
+
+Word error rate looks objective: substitutions plus insertions plus deletions, divided by reference length. Three practices separate an honest number from a marketing one.
+
+**Normalisation decides the number.** Before comparison, both transcripts get normalised: casing, punctuation, number formats, contractions. Whether nineteen ninety five matches 1995 is a normalisation policy, not a recognition fact, and different policies move WER by whole percentage points on identical output. Any WER without its normalisation recipe attached is uninterpretable, and any comparison across systems must run one recipe over all of them.
+
+**Variance outranks the mean.** A 12 percent average built from mostly clean calls and a tail of disasters describes a different product than a steady 12 percent. Report the distribution across utterances, slice by the metadata from lesson 5, channel, noise tier, accent region, and watch the spread, because the tail is what callers escalate about.
+
+<Figure label="The mean is not the caller">
+  <WerDistribution />
+</Figure>
+
+<YouTube
+  id="uje4BChYMdc"
+  title="The mean is not the caller: per-call WER, mean versus the p95 tail"
+/>
+
+**Entity error rate is the metric your business feels.** All words are equal in WER. They are not equal to an agent: a dropped the costs nothing, a wrong digit in an account number fails the call. Score names, numbers, dates, and domain terms separately. A model can beat another on WER and lose badly on entities, and for agents the entity number is the one that predicts outcomes.
+
+<Pull>
+  The honest report is three numbers, not one: overall WER with the normalisation recipe named, WER
+  by condition slice, and entity error rate on your own entity classes.
+</Pull>
+
+<Practice>
+  This is the lesson that turns provider comparisons from vibes into evidence, and it is also the
+  STT page whose advice we most often see ignored at cost: teams pick the model with the best
+  headline WER and discover months later that its digit accuracy is the worst of the three they
+  tested.
+</Practice>
+
+## 12. Streaming metrics: partials, finalisation, and revision
+
+Accuracy metrics treat recognition as producing one transcript. A streaming recogniser produces a moving one, and three timing properties of that movement decide how an agent feels.
+
+**Time to first partial.** How quickly words start appearing after speech starts. This is the earliest signal downstream stages can act on, from live captions to eager LLM prefills, and it is usually fast across providers.
+
+**Finalisation latency.** The gap between the caller stopping and the transcript segment being marked final. This number sits directly inside the turn-taking budget: endpointing that waits for a final transcript inherits every millisecond of it. Providers differ here far more than on first-partial speed, and it is the streaming number that matters most for agents.
+
+**Revision behaviour.** How much partials change before finalising. Stable partials let downstream stages act early with confidence; jumpy partials, words appearing, vanishing, and reordering, force everything to wait for finals, which forfeits streaming's entire point. Measure it as the edit distance between each partial and the eventual final.
+
+<Pull>
+  Two providers with identical final transcripts can produce completely different agents: one whose
+  partials are trustworthy at 200 milliseconds, and one whose transcript only settles at 800. The
+  transcript quality is equal. The conversations are not.
+</Pull>
+
+<Practice>
+  Measure all three from your own client, in your region, over real calls, warm and cold. This trio
+  plus lesson 11's accuracy slices is the complete evaluation, and it is a strict superset of
+  anything a vendor page will volunteer.
+</Practice>
+
+## 13. Building an STT eval harness
+
+Same discipline as the TTS harness, pointed the other way: a fixed audio set, scripted measurement, stored baselines, and thresholds wired into CI, so any change to provider, model, configuration, or biasing produces a comparable report.
+
+The audio set is the design work:
+
+- **Real calls from your path,** consent and scrubbing permitting: your codec, your callers, your noise floor. This tier anchors everything.
+- **Entity-dense recordings:** account numbers, names, addresses, domain vocabulary, spelled words. Scored with lesson 11's entity error rate.
+- **Condition tiers:** clean, moderate, hostile SNR, so degradation curves are visible per lesson 3.
+- **Adversarial audio:** silence, pure noise, music on hold, competing speech. Not for WER, but to catch hallucinated transcripts before an agent acts on words nobody said.
+- **Reference transcripts** held to one normalisation and one verbatim convention, because the harness inherits every inconsistency in them as noise.
+
+Per run, record overall WER, sliced WER, entity error rate, the three streaming metrics, and the hallucination probes. Fail the build when any threshold breaks.
+
+<Pull>
+  Like its TTS twin, the harness earns its keep on the day a provider silently updates a model.
+  Recognition regressions otherwise reach production wearing the same API and a different brain, and
+  the first detector is a confused caller.
+</Pull>
+
+<Practice>
+  The harness also ends provider-selection theatre: three candidates, one afternoon, one report over
+  your audio. Every engagement we run starts by building exactly this, because every downstream
+  decision, biasing, fine tuning, serving, is only measurable against it.
+</Practice>

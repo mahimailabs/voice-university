@@ -1,0 +1,103 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 16
+unit: 5
+unitTitle: 'The vocoder'
+title: 'What is a neural vocoder? HiFi-GAN measured on a CPU'
+navTitle: 'What a vocoder does'
+summary: '96.4% of our synthesis time went to a stage we never trained: the HiFi-GAN vocoder. What it does with 80 numbers per frame, and how fast it runs on 4 CPU cores.'
+seoTitle: 'What Is a Neural Vocoder? HiFi-GAN on a CPU | Mahimai'
+keywords:
+  - 'neural vocoder'
+  - 'HiFi-GAN'
+  - 'mel spectrogram to audio'
+  - 'vocoder real-time factor'
+  - 'HiFi-GAN CPU inference'
+proficiency: 'Intermediate'
+faq:
+  - q: 'What does a neural vocoder do in TTS?'
+    a: 'It turns a mel spectrogram into a waveform. The mel spectrogram keeps how much energy sits in each frequency band per frame and throws away phase, so the vocoder has to generate the actual samples, 256 of them per frame at the LJSpeech settings, consistent with the spectrum it was given.'
+  - q: 'How fast is HiFi-GAN on a CPU?'
+    a: 'On a 4-core cloud container with no GPU, the pretrained LJSpeech HiFi-GAN from SpeechBrain ran at a real-time factor of 0.19 to 0.27 across four runs on one 7.55-second clip (copy synthesis and three mismatched mel recipes), roughly 4 to 5 times faster than real time. The HiFi-GAN paper reports 13.4 times faster than real time on CPU for its lightweight variant.'
+  - q: 'Can I reuse a pretrained vocoder with my own acoustic model?'
+    a: 'Yes, if your acoustic model predicts exactly the mel recipe the vocoder was trained on: sample rate, FFT size, hop, number of mel bins, frequency range, mel scale, normalisation and log compression. That is what we did with our tiny model. A single mismatch in that recipe can wreck the output.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import Practice from '../../../components/course/Practice.astro';
+
+96.4% of our synthesis time went to one stage, and it was the stage we never trained. Our acoustic model turned a sentence into mel frames in 3.6% of the time; the pretrained HiFi-GAN vocoder spent the rest turning those frames into sound.
+
+This page is about that stage. You will see what a vocoder has to produce, how HiFi-GAN is built according to its paper, what it measured on a 4-core cloud container with no GPU, and why a pretrained one was the right choice for a from-scratch build.
+
+## What is a neural vocoder?
+
+A neural vocoder is the network that turns a mel spectrogram into a waveform. The acoustic model says how much energy each frequency band carries in each frame; the vocoder produces the samples.
+
+That is a large expansion. Our vocoder takes 80 numbers per frame and emits 256 audio samples for each one, at 22,050 samples a second. And the 80 numbers are incomplete: a mel spectrogram keeps magnitude and throws away phase, the timing relationship between frequency components. [Why TTS needs a vocoder](/learn/100x/tts/why-tts-needs-a-vocoder) shows what is lost. The vocoder has to generate a waveform whose spectrum matches the mel, with phase that holds together from one frame to the next.
+
+Classical signal processing can estimate phase iteratively. Neural vocoders learn it from data instead, which is why they need training on a lot of audio and why they are reused so widely.
+
+## How does HiFi-GAN work?
+
+HiFi-GAN is a generative adversarial network: a generator that upsamples mel frames into a waveform, trained against discriminators that try to tell its output from real audio.
+
+NVIDIA's [NeMo documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/models.html) summarises the design as "one generator and two discriminators (multi-scale and multi-period)". The generator upsamples with transposed convolutions, each followed by a multi-receptive field fusion module that looks at the signal at several scales at once. The multi-period discriminator looks at the audio folded at several fixed periods, which matches the [HiFi-GAN paper](https://arxiv.org/abs/2010.05646)'s central argument: speech is made of periodic signals, so modelling periodic patterns is what lifts sample quality.
+
+The paper reports generating 22.05 kHz audio 168 times faster than real time on a V100 GPU, and a lightweight variant at 13.4 times faster than real time on CPU. Those are the authors' numbers on their hardware. Ours follow.
+
+## How fast is a vocoder on a CPU?
+
+On our container, the vocoder alone ran at a real-time factor of 0.19 to 0.27 on a 7.55-second LJSpeech clip, so roughly 4 to 5 times faster than real time. The 0.27 was the first run, with cold caches.
+
+Real-time factor is synthesis time divided by audio duration: below 1 is faster than real time. We timed the two stages separately in `compare_piper`, our Piper comparison run, which is the source of the 3.6% and 96.4% split. The timing brackets the vocoder call like this:
+
+```python
+m = model.infer(ids)[0] * c["stats"]["mel_std"] + c["stats"]["mel_mean"]
+t1 = time.time()
+wav = voc.decode_batch(m.T.unsqueeze(0)).squeeze().numpy()
+t2 = time.time()
+```
+
+The first row comes from four vocoder runs on that one clip: copy synthesis plus the three mismatch variants from the next lesson. The other two rows are three probe sentences, two timed passes each after a warm-up pass:
+
+| System, 4 CPU cores                | Real-time factor | Share of synthesis time          |
+| ---------------------------------- | ---------------- | -------------------------------- |
+| HiFi-GAN alone, one 7.55 s clip    | 0.19 to 0.27     | all of it                        |
+| Tiny model (step 1,650) + HiFi-GAN | 0.24             | acoustic 3.6%, vocoder 96.4%     |
+| Piper, VITS end-to-end             | 0.052            | one network, no separate vocoder |
+
+<Pull>
+  Our acoustic model is 3.6% of synthesis time. Making it twice as fast would save under 2% of the
+  total. Every real speed-up in this system lives in the vocoder.
+</Pull>
+
+The Piper row is the reason [end-to-end TTS](/learn/100x/tts/end-to-end-tts-vits) gets its own page. It produces a waveform directly and ran about 4.6 times faster than our cascade on the same probes.
+
+## Why use a pretrained vocoder?
+
+Because it is the biggest, slowest-to-train part of the system, and a public HiFi-GAN trained on LJSpeech already exists: copy synthesis through it lands 12.3 dB from the original by log-spectral distance. We used [speechbrain/tts-hifigan-ljspeech](https://huggingface.co/speechbrain/tts-hifigan-ljspeech), Apache-2.0, trained on the same dataset.
+
+The test that it fits is copy synthesis: take a real clip, compute its mel with the vocoder's own recipe, and vocode it. No acoustic model is involved, so the result is the ceiling for any acoustic model paired with this vocoder. On LJ001-0009, copy synthesis came out at a log-spectral distance of 12.3 dB from the original. That is one clip and not a perceptual score. Press play and compare.
+
+<AudioSample src="/audio/tts/lj001-0009-original.mp3" label="LJ001-0009, original">
+  The recording, 7.55 s.
+</AudioSample>
+
+<AudioSample src="/audio/tts/copy-synthesis.mp3" label="Copy synthesis">
+  Same clip, converted to its mel with the vocoder's recipe, then vocoded by HiFi-GAN. On this clip,
+  a log-spectral distance of 12.3 dB from the original.
+</AudioSample>
+
+The catch is the recipe. The vocoder expects mels computed the way it was trained, and some deviations matter far more than others. Its recipe: 22,050 Hz, n_fft 1024, hop 256, 80 bins from 0 to 8,000 Hz, Slaney mel scale and norm, natural-log compression. Our tiny model exists to predict exactly that. [Mel recipe mismatch](/learn/100x/tts/mel-recipe-mismatch) measures what happens when one setting is off.
+
+<Practice label="Sizing a vocoder">
+  Time your acoustic model and vocoder separately on your own hardware before optimising either.
+  Multiply the combined real-time factor by the audio minutes you expect to serve, and you have the
+  compute you are paying for; [cost and deployment](/learn/100x/tts/tts-cost-and-deployment) turns
+  that into a per-minute figure.
+</Practice>

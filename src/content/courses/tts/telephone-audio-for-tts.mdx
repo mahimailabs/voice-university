@@ -1,0 +1,112 @@
+---
+course: 'tts'
+courseTitle: 'TTS from Scratch'
+order: 4
+unit: 1
+unitTitle: 'Sound as numbers'
+title: 'Telephone audio for TTS: 8 kHz, G.711 mu-law and what the caller hears'
+navTitle: 'Telephone audio'
+summary: 'On our test clip, 10.5% of the energy sits above 4 kHz, and an 8 kHz phone line deletes all of it. What narrowband telephony does to TTS, and how to audition for it.'
+seoTitle: 'Telephone Audio for TTS: 8 kHz and G.711 | Mahimai'
+keywords:
+  - 'telephone audio TTS'
+  - '8 kHz audio'
+  - 'G.711 mu-law'
+  - 'narrowband speech'
+  - 'TTS for phone calls'
+  - 'voice agent telephony'
+proficiency: 'Beginner'
+faq:
+  - q: 'What sample rate does telephone audio use?'
+    a: 'Classic narrowband telephony samples at 8,000 Hz, so the highest frequency it can carry is 4,000 Hz. G.711 then stores each sample in 8 bits using mu-law or A-law companding, which works out to 64 kbit/s. Any TTS voice reaching a caller over the public phone network should be assumed to pass through a path like this.'
+  - q: 'Should I generate TTS audio at 8 kHz for phone calls?'
+    a: 'You can synthesise at the model native rate and downsample at the edge, or use a model trained at a lower rate. Either way, frequencies above 4 kHz never reach the caller on a narrowband line, so extra bandwidth in the synthesis only costs compute. Audition voices through the actual phone path before choosing one.'
+  - q: 'How much does the phone path change a TTS clip?'
+    a: 'On one LJSpeech clip, 10.5% of the energy sat above 4 kHz, which narrowband telephony removes. Our copy-synthesised version of that clip scored 12.3 dB log-spectral distance from the original; after 8 kHz resampling and 8-bit mu-law it scored 13.2 dB. That is one clip and a signal measure, not a listening test.'
+status: 'ready'
+updatedDate: 2026-09-28
+---
+
+import Practice from '../../../components/course/Practice.astro';
+import Figure from '../../../components/course/Figure.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import BandwidthLoss from '../../../components/course/figures/BandwidthLoss.astro';
+
+On the LJSpeech clip we use as our test recording, 10.5% of the energy sits above 4 kHz. A traditional phone line deletes every bit of it before the caller hears a word. If your voice agent answers phone calls, that is the audio your TTS voice is actually judged on.
+
+This page covers what an 8 kHz telephone path does to synthetic speech, the exact phone simulation we ran on our copy-synthesised clip, and how to put the phone path into voice selection.
+
+## Why is telephone audio 8 kHz?
+
+Telephone audio is 8 kHz because classic narrowband telephony samples speech 8,000 times a second, which caps the content at 4,000 Hz (half the rate, the Nyquist limit from the [sampling lesson](/learn/100x/tts/what-is-audio-sampling)). The standard for that path is ITU-T [G.711](https://www.itu.int/rec/T-REC-G.711), "Pulse code modulation (PCM) of voice frequencies", whose current edition on the ITU page is dated 11/1988.
+
+G.711 stores each sample in 8 bits instead of 16. To keep quiet sounds usable at that precision it uses companding: mu-law or A-law, both of which space the 256 levels closely near zero and widely near full scale. Eight thousand samples of eight bits is 64,000 bits per second.
+
+Modern VoIP can do better. The Opus codec, for instance, defines bandwidths from narrowband (4 kHz audio, 8 kHz sampling) up to fullband (20 kHz audio, 48 kHz sampling) in [RFC 6716](https://datatracker.ietf.org/doc/html/rfc6716). But a call that crosses the public phone network, or a SIP trunk that negotiates G.711, drops back to narrowband. Plan for 8 kHz as the floor.
+
+## What does the phone path remove from a TTS voice?
+
+The phone path removes everything above 4 kHz, then adds the quantisation error of 8-bit samples. For TTS, the first loss is the one that matters: it cuts through the middle of the band our vocoder draws.
+
+<Figure label="The 4 kHz ceiling">
+  <BandwidthLoss />
+</Figure>
+
+Recall the [vocoder's recipe](/learn/100x/tts/mel-spectrogram): 80 mel bands from 0 to 8,000 Hz. Everything our model learns to predict above 4 kHz is discarded on a narrowband call. That band is the top half of the range in hertz, but only a minority of the 80 mel bands, because the mel scale packs its bands closely at low frequencies. Fricatives like "s" and "f" put much of their energy up there, one reason people spell out letters on the phone ("S as in Sam").
+
+On our test clip, LJ001-0009, we measured the share of energy in each band of the original recording:
+
+| Band                                          | Share of clip energy |
+| --------------------------------------------- | -------------------- |
+| Above 4 kHz (removed by narrowband telephony) | 10.5%                |
+| Above 8 kHz (not modelled by our vocoder)     | 1.9%                 |
+
+So the vocoder's own ceiling at 8 kHz costs this clip under 2% of its energy. The phone line's ceiling at 4 kHz costs more than five times that.
+
+## How we simulated the phone path
+
+We simulated a G.711-style path in `vocoder_demo.py`: take the copy-synthesised clip, resample it to 8 kHz, encode it as 8-bit mu-law with 256 levels, decode, and resample back to 22,050 Hz so it can be compared with the original.
+
+```python
+# vocoder_demo.py
+t8 = AF.resample(t, SR, 8000)
+enc = AF.mu_law_encoding(t8, 256)
+dec = AF.mu_law_decoding(enc, 256)
+back = AF.resample(dec, 8000, SR).squeeze().numpy()
+report["versions"]["telephone_8k_mulaw"] = {"lsd_db": lsd(audio, back)}
+```
+
+This simulates the codec path only. There is no packet loss, no jitter buffer, no network echo canceller. It isolates the two things G.711 always does.
+
+The result, by log-spectral distance against the original recording (lower is closer, one clip, not perceptual):
+
+| Version                                         | LSD (dB) |
+| ----------------------------------------------- | -------- |
+| Copy synthesis (mel to HiFi-GAN)                | 12.3     |
+| Copy synthesis, 8 kHz mu-law, back to 22,050 Hz | 13.2     |
+
+That 13.2 includes the vocoder's own loss, because the phone path starts from the copy-synthesised audio. On this clip the telephone step added 0.9 dB on top.
+
+<AudioSample src="/audio/tts/telephone-8khz.mp3" label="Copy synthesis through the phone path">
+  LJ001-0009 after copy synthesis, resampled to 8 kHz and mu-law encoded at 8 bits. 13.2 dB
+  log-spectral distance from the original. Press play, then compare it with the copy-synthesis clip
+  in the vocoder lesson.
+</AudioSample>
+
+## What does telephony change about building TTS?
+
+Telephony changes three decisions: which voice you pick, what rate you synthesise at, and what audio you evaluate on.
+
+**Voice selection.** Voices are usually chosen by listening in a browser or on headphones at the model's full rate. A caller never hears that version. A voice whose character depends on detail above 4 kHz loses that detail on the line, while two voices that differ mainly in the low band stay distinguishable.
+
+**Synthesis rate.** Our pipeline produces 22,050 Hz audio with content up to 8 kHz. For a narrowband call, the half of the modelled band above 4 kHz is computed and then thrown away. That is fine when the same voice also serves web and app clients; for a phone-only deployment it is worth asking whether a lower-rate model would cost less for the same caller experience. [Cost and deployment](/learn/100x/tts/tts-cost-and-deployment) turns that question into a formula.
+
+**Evaluation.** A metric measured on full-band audio describes the full-band product. If the product is a phone line, run the same evaluation after the phone path. Our [evaluation harness](/learn/100x/tts/tts-eval-harness) transcribes synthesised audio with Whisper; a phone version of that check only needs the four resampling and mu-law lines above inserted before transcription. We have not run that variant.
+
+<Practice label="Audition through the line">
+  Pick your shortlist of voices. Render the same ten sentences from each, run them through the 8 kHz
+  mu-law snippet above, and listen only to the phone versions. Better still, place a real call
+  through your trunk and record the far end. Choose from what the caller hears.
+</Practice>
+
+Next: [the LJSpeech dataset](/learn/100x/tts/ljspeech-dataset), measured clip by clip: what a clean training corpus actually looks like in numbers.

@@ -1,0 +1,158 @@
+---
+course: 'livekit'
+courseTitle: 'LiveKit'
+order: 20
+unit: 5
+unitTitle: 'Finding the ceilings'
+title: 'Autoscaling voice infrastructure: CPU is the wrong signal'
+navTitle: 'Autoscaling on the right signal'
+summary: 'A scale-in was requested against nodes holding 40 live calls each, because CPU looked idle. Autoscale a voice fleet on active calls per instance instead.'
+seoTitle: 'Autoscaling Voice Infrastructure: Why CPU Is Wrong | Mahimai'
+keywords:
+  - 'voice autoscaling'
+  - 'LiveKit autoscaling'
+  - 'scale on active calls'
+  - 'CloudWatch custom metric target tracking'
+proficiency: 'Advanced'
+faq:
+  - q: 'What metric should a voice fleet autoscale on?'
+    a: 'Active calls per in-service instance. Media ports are linear in calls and CPU is roughly linear in calls, so one target on calls per instance keeps the fleet inside both ceilings at once.'
+  - q: 'Why is average CPU a poor autoscaling signal for voice?'
+    a: 'It cannot see the RTP port ceiling, which can arrive at the same load as the CPU target and fails without an error. It also reads low on nodes carrying many steady, long-lived calls, so a scale-in can target a node with live calls on it.'
+  - q: 'Why should an idle node publish zero active calls?'
+    a: 'With no datapoint, the target tracking alarm goes to insufficient data and scaling stops acting. Publishing zero keeps the metric continuous, so scale-in works when the fleet is quiet.'
+status: 'ready'
+updatedDate: 2026-09-27
+---
+
+import Pull from '../../../components/course/Pull.astro';
+import DiagramEmbed from '../../../components/course/figures/DiagramEmbed.astro';
+
+We watched a scale-in get requested against nodes holding 40 live calls each, because the groups were target-tracking average CPU and on those nodes CPU looked low. No calls dropped. A separate guard refused to terminate them, and that guard was the only reason.
+
+Both autoscaling groups on the fleet target-tracked average CPU. That is the obvious choice, and the easiest one to configure. For a media workload it is wrong. This lesson covers the three reasons (two of which we measured), the signal to use instead, and the exact CloudWatch and Auto Scaling configuration to publish it and scale on it.
+
+## Why CPU cannot see the ceiling that arrives first
+
+The media nodes exhausted their RTP port range at roughly the same load where CPU reached 70%, and past that line calls connect and carry no audio while CPU looks fine throughout. A CPU trigger is structurally incapable of seeing the failure that actually hurts. [Port exhaustion](/learn/100x/livekit/livekit-port-exhaustion) has the measurement: 18.3 ports per call against a 10,001-port range.
+
+## Long-lived calls make CPU read low
+
+A node holding 150 five-minute calls can read low average CPU. The work of a voice call is steady packet relay, not bursts, and steady relay sits well under a CPU target. Scale in on that number and you terminate a node carrying live calls, which is the scale-in we watched against nodes holding 40 calls each.
+
+The third reason is simpler. A default is not advice. CPU target tracking is usually the first option offered because it is the easiest thing to configure, and nothing about that makes it fit a media workload. Choose the signal for the workload you run.
+
+## The signal to use: active calls per in-service instance
+
+Publish active calls per instance as a custom metric, and target-track it with metric math against the in-service instance count. Calls capture both ceilings at once. Ports are linear in calls at 18.3 per call, and CPU is roughly linear in calls too, so one trigger on a number the fleet already knows holds you inside both ceilings simultaneously. Calls per node is also the natural unit because a room lives on one node ([multi-node routing](/learn/100x/livekit/livekit-multi-node-redis) explains why).
+
+<DiagramEmbed
+  id="voice-autoscaling-signal"
+  title="Autoscaling a voice fleet on active calls per instance (interactive data-flow diagram)"
+>
+  One signal the fleet already knows: active calls per in-service instance, with a guard that never
+  terminates a node holding calls.
+</DiagramEmbed>
+
+### Step 1: publish active calls from every instance, every minute
+
+Each instance publishes its current call count once a minute with [`put-metric-data`](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/publishingMetrics.html). Every instance uses the same namespace, metric name, and dimension, so CloudWatch aggregates them into one series for the group:
+
+```bash
+aws cloudwatch put-metric-data \
+  --namespace VoiceFleet \
+  --metric-name ActiveCalls \
+  --dimensions AutoScalingGroupName=sfu-asg \
+  --unit Count \
+  --value "$ACTIVE_CALLS"
+```
+
+`$ACTIVE_CALLS` is whatever count the node already keeps. `VoiceFleet` and `sfu-asg` are placeholders for your own names; custom namespaces must not start with `AWS/`. Publish exactly once per minute per instance: the policy below takes the `Sum` over one minute, so publishing more often would count the same calls twice.
+
+The instance role needs `cloudwatch:PutMetricData`. Check whether it already has it before designing around custom metrics. Ours did. That made this a code change. Without it, the same change becomes a permissions negotiation, and that difference is a week of calendar time in most organisations.
+
+### Step 2: publish zero when idle
+
+An idle node must publish zero. Skipping the call because there is nothing to report is the easy mistake.
+
+<Pull>
+  With no datapoint the alarm goes to insufficient data and scaling freezes without a word, which is
+  worse than scaling on the wrong number, because at least the wrong number is visible.
+</Pull>
+
+CloudWatch's own guidance says the same for periodic health metrics: when a period has no data, publish the value zero for that period.
+
+### Step 3: turn on the group's in-service count
+
+The divisor is `GroupInServiceInstances` in the `AWS/AutoScaling` namespace. It only exists if group metrics collection is on for the group ([Auto Scaling group metrics](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-metrics.html)):
+
+```bash
+aws autoscaling enable-metrics-collection \
+  --auto-scaling-group-name sfu-asg \
+  --metrics GroupInServiceInstances \
+  --granularity "1Minute"
+```
+
+### Step 4: target-track calls per instance with metric math
+
+A customized metric specification can combine metrics with an expression, as long as it returns a single time series ([target tracking with metric math](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-target-tracking-metric-math.html)). Save this as `config.json`:
+
+```json
+{
+  "CustomizedMetricSpecification": {
+    "Metrics": [
+      {
+        "Label": "Active calls across the group",
+        "Id": "m1",
+        "MetricStat": {
+          "Metric": {
+            "MetricName": "ActiveCalls",
+            "Namespace": "VoiceFleet",
+            "Dimensions": [{ "Name": "AutoScalingGroupName", "Value": "sfu-asg" }]
+          },
+          "Stat": "Sum"
+        },
+        "ReturnData": false
+      },
+      {
+        "Label": "In-service instances",
+        "Id": "m2",
+        "MetricStat": {
+          "Metric": {
+            "MetricName": "GroupInServiceInstances",
+            "Namespace": "AWS/AutoScaling",
+            "Dimensions": [{ "Name": "AutoScalingGroupName", "Value": "sfu-asg" }]
+          },
+          "Stat": "Average"
+        },
+        "ReturnData": false
+      },
+      {
+        "Label": "Active calls per instance",
+        "Id": "e1",
+        "Expression": "m1 / m2",
+        "ReturnData": true
+      }
+    ]
+  },
+  "TargetValue": 300
+}
+```
+
+Then attach it:
+
+```bash
+aws autoscaling put-scaling-policy \
+  --policy-name calls-per-instance \
+  --auto-scaling-group-name sfu-asg \
+  --policy-type TargetTrackingScaling \
+  --target-tracking-configuration file://config.json
+```
+
+`TargetValue` above is a placeholder. Set it below your per-node ceiling (400 calls on our SFU tier) by at least the calls that arrive while a new node boots. The [capacity model](/learn/100x/livekit/voice-capacity-model) walks through that lead-time arithmetic.
+
+### Step 5: keep the guard
+
+Calls per instance tells the group how many nodes it needs. It does not tell the group which node is safe to remove, so keep a guard that never terminates a node holding calls. On AWS, [instance scale-in protection](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-instance-protection.html) is one way to build it: a node sets protection on itself while it carries calls and clears it when it is empty. Draining a node on purpose is covered in [zero-downtime deploys](/learn/100x/livekit/voice-zero-downtime-deploys).
+
+Next: [scaling inbound SIP](/learn/100x/livekit/scaling-inbound-sip), where adding nodes does nothing until the carrier knows about them.
