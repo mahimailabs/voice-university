@@ -1,11 +1,12 @@
 ---
+lessonId: livekit-lesson-017
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 17
 unit: 4
-unitTitle: 'Load testing voice agents'
-title: 'Load test time bucketing: why end-time grouping inverts conclusions'
-navTitle: 'Bucket by the right timestamp'
+unitTitle: 'Load Testing'
+title: 'Time Bucketing'
+navTitle: 'Time Bucketing'
 summary: '83 of 400 calls failed and the chart showed a capacity hump. Grouped by start time, it was a warm-up decay, and the fix cost nothing. Same data, other clock.'
 seoTitle: 'Load Test Analysis: Bucket by Start Time, Not End Time | Mahimai'
 keywords:
@@ -20,8 +21,10 @@ faq:
   - q: 'How do you tell a warm-up problem from a capacity problem in a load test?'
     a: 'Hold offered load flat and look at failures by start minute. A failure rate that decays to zero under constant load points to warm-up. A rate that rises with load and stays up points to capacity. A rerun at identical settings after pre-warming is the confirming test.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 import Practice from '../../../components/course/Practice.astro';
@@ -30,15 +33,15 @@ A run at 75 concurrent failed 83 of 400 calls. We bucketed the failures by minut
 
 It was wrong, and the error was in the timestamp we grouped by.
 
-This lesson shows how the same 83 failures produce opposite conclusions depending on which clock you bucket them by, and gives you a check to run on any time series built from events that last longer than a moment.
+The numbers below are saved case-study results. The original raw run bundle is not included here, and this review did not rerun the fleet experiment.
 
-## Calls have duration, so every call has two timestamps
+## Event Timestamps
 
 A call that fails has a start time and an end time, and they can be minutes apart. We bucketed by the minute each call ended. Calls lasted about two minutes, so every failure was recorded two minutes after the condition that caused it.
 
 That shift is enough to move a peak. Failures caused by conditions early in the run land in the middle of the chart. The first minutes look quiet because few calls have ended yet. By the last minutes, the calls ending were started after the trouble had passed. What you get is a hump built out of a lag.
 
-## The same 83 failures, re-bucketed by start time
+## Start Cohorts
 
 Grouped by the minute each call started, the same 83 failures look like this:
 
@@ -54,29 +57,29 @@ Grouped by the minute each call started, the same 83 failures look like this:
 | 09:14  | 30            | 0      |
 | 09:15  | 32            | 0      |
 
-Offered load was flat at 30 calls per minute throughout. Read down the right-hand column: the failure rate starts high in the first full minute, falls away, reaches zero, and stays there. That is a decay. A decay under constant load is the signature of something warming up, and it says nothing about running out.
+Most complete minutes in this excerpt offered 30 calls; boundary buckets differ. Read down the right-hand column: failures rise initially, then decline to zero. That supports a warm-up hypothesis; it does not prove the cause without a controlled rerun.
 
-Here is the check we should have done first. Peak concurrency in the failing run was higher than in the passing rerun. If the system had run out of capacity, the run with less concurrency would not be the one that failed. That fact alone should have killed the capacity theory earlier than it did.
+Compare offered rate, achieved concurrency, call duration and readiness between runs. Those controls matter more than the shape of one curve; lower load in a passing rerun would not, by itself, rule out capacity.
 
-## Warm-up or capacity: the two readings point in opposite directions
+## Warm-Up Hypothesis
 
 The difference matters because each reading prescribes a different action.
 
 - **"Ran out of capacity"** means buy more machines.
-- **"Warming up"** means pre-warm the pool before traffic arrives, which costs nothing.
+- **"Warming up"** means pre-warm the pool before traffic arrives, which uses idle compute and memory.
 
 Pre-warming was the actual fix. A rerun at identical settings completed 400 of 400.
 
 <Pull>
   The end-time chart would have sent someone shopping for hardware they did not need. The start-time
-  chart pointed at a fix that cost nothing.
+  chart pointed at pool readiness rather than immediate fleet expansion.
 </Pull>
 
 If the pool in question is a LiveKit agent worker pool, the framework already runs each job in its own process and can keep processes warm ahead of demand: a `prewarm` function loads slow assets before any job is assigned, and `num_idle_processes` controls how many warm processes wait. Both are documented under [server options](https://docs.livekit.io/agents/server/options/). The rate side of the same problem, where the pool cannot spawn fast enough, is the subject of [concurrency vs calls per second](/learn/100x/livekit/concurrency-vs-cps).
 
-## Which timestamp to bucket by
+## Attribution Windows
 
-Bucket by the timestamp of the event you are attributing, not the timestamp you happen to have. For anything with duration, the start time is when the system was under the conditions you are trying to explain. The end time is when you found out.
+Bucket by the timestamp of the event you are attributing, not the timestamp you happen to have. Use start cohorts for setup failures. For mid-call loss or stalls, use the actual failure timestamp and contemporaneous load. The end time is useful for completion and teardown questions.
 
 Most load tools and call records hand you the end time first, because that is when the record is written. Check which one your report uses before you read any shape into it.
 
@@ -97,3 +100,8 @@ The gap between the two clocks is the call duration, and at a fixed arrival rate
 </Practice>
 
 Our reporting misled us in other ways too. [When your own report lies](/learn/100x/livekit/debugging-load-test-reports) covers three more defects, all of them in derivations over correct data. The raw call records here were never wrong either. For the per-call counting habit that made the 83 countable in the first place, see [per-call resource accounting](/learn/100x/livekit/per-call-resource-accounting).
+
+<Checkpoint
+  question="Should every failure chart use call start time?"
+  answer="No. Start cohorts help explain setup failures; packet loss during a call belongs to the time it happened. Choose the timestamp for the failure mechanism."
+/>

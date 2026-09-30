@@ -1,0 +1,48 @@
+---
+lessonId: stt-lesson-018
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 18
+unit: 5
+unitTitle: "Recognition Evaluation"
+title: "Channel Robustness"
+navTitle: "Channel Robustness"
+summary: "Run paired noise probes while preserving the clean references, model and scoring policy."
+seoTitle: "Channel Robustness for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+A robustness comparison should change the channel condition while keeping the underlying examples fixed. The lab's probe script adds deterministic Gaussian noise to the same evaluation sequences and reruns the retained checkpoint.
+
+## Run Probes
+
+```sh
+python probes.py --data fsdd --run my-run
+```
+
+The SNR calculation uses full-clip RMS, including inserted silence. Noise is regenerated from a fixed seed for each example. The script does not clip or renormalise the mixture after adding noise. Those details matter when another implementation tries to reproduce the results.
+
+<TrainingEvidence kind="noise" />
+
+## Interpret Limits
+
+These are synthetic noise probes on a development set. They are not recordings from a carrier network, a workshop or a moving vehicle. White noise is a controlled perturbation; it does not reproduce competing speakers or reverberation.
+
+A severe degradation tells us this baseline is fragile under this transform. It does not identify the best remedy. Augmentation, frontend processing and different training data should be separate experiments with the same evaluation boundary.
+
+## Paired Review
+
+Retain clean and noisy hypotheses for each sequence when developing further probes. Identify cases that changed from correct to incorrect and the reverse. Aggregate percentages can hide both kinds of movement.
+
+<Checkpoint question="Should we tune the noise transform until two models have the ranking we expect?" answer="No. Choose conditions that answer a deployment or scientific question, document them, and report the observed outcome. A transform selected to force a ranking invalidates that comparison." />
+
+Use [Telephone Channels](/learn/100x/stt/telephone-channels) to understand what the probe omits. Keep [Entity Accuracy](/learn/100x/stt/entity-accuracy) alongside digit error rate, then package the run with [Evaluation Harness](/learn/100x/stt/evaluation-harness).

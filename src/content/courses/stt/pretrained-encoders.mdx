@@ -1,0 +1,51 @@
+---
+lessonId: stt-lesson-022
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 22
+unit: 6
+unitTitle: "Model Improvements"
+title: "Pretrained Encoders"
+navTitle: "Pretrained Encoders"
+summary: "Plan the transition from a tiny digit recognizer to a pretrained speech representation without hiding the change in scope."
+seoTitle: "Pretrained Encoders for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+Our small random-weight model is useful because its entire pipeline is visible. Its limited vocabulary, synthetic pauses and narrow speaker coverage make it a poor starting point for claims about general conversation.
+
+A pretrained encoder changes the starting point: some acoustic representation has already been learned elsewhere. That is adaptation, not the same from-scratch experiment.
+
+## Interface Audit
+
+Before loading a checkpoint, record its expected sample rate, waveform or feature interface, vocabulary, licence and output semantics. Our 129-bin spectra cannot be assumed to match another model's input contract.
+
+The [Hugging Face ASR tutorial](https://huggingface.co/docs/transformers/tasks/asr) demonstrates a pretrained CTC workflow. Use its processor and model together, then pin the exact revisions in your experiment. Do not silently copy our digit-only token head into a different recognizer.
+
+## Staged Comparison
+
+| Stage | Trainable parts | Question |
+| --- | --- | --- |
+| Existing checkpoint | None | What does it already do on the target audio? |
+| Frozen representation | New task head | Are the features useful for this constrained task? |
+| Partial adaptation | Selected layers and head | Does extra flexibility help held-out inputs? |
+| Full adaptation | Entire model | Is the added cost and regression risk justified? |
+
+These are proposed experiments, not results we ran for this course revision. The downloadable measured run contains only the small random-weight baseline.
+
+## Preserve Boundaries
+
+Use the same manifest and scoring policy when the task is unchanged. If you move from digit strings to conversational transcripts, create a new task definition and evaluation set; a different target distribution is not a fair head-to-head continuation of the old score.
+
+<Checkpoint question="If a pretrained model beats our digit model, have we learned which architectural layer caused the gain?" answer="No. Pretraining data, objectives, size, tokenisation and architecture may all differ. Report the systems compared and avoid attributing the gain to one unisolated factor." />
+
+[Domain Adaptation](/learn/100x/stt/domain-adaptation) defines a controlled next experiment. Keep [Checkpoint Selection](/learn/100x/stt/checkpoint-selection) and the evaluation contract intact throughout.

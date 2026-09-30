@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-018
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 18
 unit: 5
-unitTitle: 'The vocoder'
-title: 'End-to-end TTS with VITS: Piper against our cascade on a CPU'
-navTitle: 'End-to-end TTS: VITS'
+unitTitle: 'Waveform Synthesis'
+title: 'End-to-End Synthesis'
+navTitle: 'End-to-End Synthesis'
 summary: 'Piper, a VITS model, scored 1.9% word error on our probes at 19x real time on 4 CPU cores. Our cascade: 21% and about 4x. What one model with no mel hand-off buys.'
 seoTitle: 'End-to-End TTS with VITS and Piper, Measured | Mahimai'
 keywords:
@@ -23,17 +24,17 @@ faq:
   - q: 'What licence does Piper use?'
     a: 'Two, for two parts. The piper-tts runtime package is GPL-3.0-or-later. The voice weights in the rhasspy/piper-voices repository are MIT, and the LJSpeech voice card lists its dataset as public domain. Check both before you ship.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import AudioSample from '../../../components/course/AudioSample.astro';
 import Practice from '../../../components/course/Practice.astro';
 
-Piper's LJSpeech voice, a 63.5 MB VITS model, transcribed at 1.9% word error rate on our three probe sentences and ran about 19 times faster than real time on a 4-core cloud container with no GPU. Our cascade, on the same probes and the same machine: 21% and about 4 times.
+Piper pairs a VITS voice with ONNX Runtime and a phoneme front end. Our experiment pairs a small acoustic model with HiFi-GAN. Compare their audio and timings, without treating the gap as an architecture-only result.
 
-Both learned from the same dataset. This page explains what end-to-end TTS is, what the measured gap does and does not tell you, and what you give up when there is no mel spectrogram between the stages.
-
-## What is end-to-end TTS?
+## VITS Architecture
 
 An end-to-end model turns text symbols into a waveform in one network. NeMo's [TTS overview](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/intro.html) puts it as integrating the text, acoustic and vocoder stages "as a single model so that it directly synthesizes audios from graphemes/phonemes inputs without any intermediate processes."
 
@@ -47,7 +48,7 @@ It also replaces a deterministic duration predictor with a stochastic one, so th
 
 [Piper](https://github.com/OHF-Voice/piper1-gpl) packages VITS voices for local use, exported to ONNX, with espeak-ng for phonemisation in front. Its LJSpeech voice was trained by its author for 1,000 epochs at "medium" quality, according to the voice card.
 
-## How does Piper compare with our tiny model?
+## Piper Comparison
 
 On three probe sentences, two timed passes each after a warm-up pass, transcribed by Whisper base.en:
 
@@ -73,13 +74,13 @@ Here is the same probe from each system. Press play.
 
 The comparison is lopsided on purpose. Piper is a finished voice trained on the full dataset; ours is a teaching model trained on 413 clips for 200 seconds. The useful reading is the distance between them: that is the part of the job a CPU and a few minutes cannot do.
 
-## Why is Piper faster than our cascade?
+## Runtime Differences
 
 We did not profile it, so this section is reasoning, clearly labelled. Our measurement only says the whole Piper pass took 0.052 of real time and our two-stage pass took 0.24, with 96.4% of ours in the HiFi-GAN vocoder.
 
 Plausible contributors: Piper runs through ONNX Runtime while our pipeline runs eager PyTorch; its "medium" voice may use a smaller waveform decoder than the SpeechBrain HiFi-GAN; and it makes one pass instead of two. Any of these could dominate. If speed decides your choice, time both on your own hardware rather than trusting our explanation.
 
-## What do you give up with an end-to-end model?
+## Architecture Tradeoffs
 
 The mel spectrogram as an interface, and everything that interface gave you.
 
@@ -93,5 +94,10 @@ The mel spectrogram as an interface, and everything that interface gave you.
   fewest moving parts. Keep a cascade when you need to swap the vocoder, debug stages separately, or
   train an acoustic model on data too small for a full end-to-end run.
 </Practice>
+
+<Checkpoint
+  question="Does this comparison prove VITS is always faster?"
+  answer="No. Architecture, model size, training budget and runtime all differ. The timings describe these two systems on this CPU setup."
+/>
 
 Next: [how to evaluate TTS](/learn/100x/tts/tts-evaluation-metrics), and why output WER was the one metric we could measure for every system here.

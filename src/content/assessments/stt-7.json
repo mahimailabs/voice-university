@@ -1,0 +1,43 @@
+{
+  "course": "stt",
+  "unit": 7,
+  "version": "1",
+  "questions": [
+    {
+      "id": "stt-7-1",
+      "prompt": "An encoder uses future frames. Can you call it causal by sending small input chunks?",
+      "options": [
+        "Yes; any small chunk makes a model causal",
+        "Yes; lower the sample rate",
+        "No; inspect and bound its future context"
+      ],
+      "correct": 2,
+      "explanation": "Chunking the input does not remove the model\u2019s future dependencies or boundary effects.",
+      "lesson": "/learn/100x/stt/causal-context"
+    },
+    {
+      "id": "stt-7-2",
+      "prompt": "A partial transcript changes on the next chunk. What should a downstream system do?",
+      "options": [
+        "Assume the first partial is final",
+        "Treat partial text as revisable",
+        "Execute irreversible actions from every partial"
+      ],
+      "correct": 1,
+      "explanation": "Partial hypotheses can be revised. Downstream actions need a clear finalization and validation policy.",
+      "lesson": "/learn/100x/stt/partial-transcripts"
+    },
+    {
+      "id": "stt-7-3",
+      "prompt": "A model processes 10 seconds of audio in 2 seconds. What is its real-time factor?",
+      "options": [
+        "0.2",
+        "5",
+        "2"
+      ],
+      "correct": 0,
+      "explanation": "RTF is processing time divided by audio duration. This throughput measure alone does not establish first-token or end-to-end latency.",
+      "lesson": "/learn/100x/stt/serving-measurements"
+    }
+  ]
+}

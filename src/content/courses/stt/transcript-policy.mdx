@@ -1,0 +1,57 @@
+---
+lessonId: stt-lesson-005
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 5
+unit: 2
+unitTitle: "Training Data"
+title: "Transcript Policy"
+navTitle: "Transcript Policy"
+summary: "Define what each target means and keep identifier characters intact."
+seoTitle: "Transcript Policy for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+Our target is the digit string spoken in the assembled audio. A recording of “zero, seven” becomes `07`. It is not converted into the integer seven. The target policy is part of the task definition.
+
+## Target Contract
+
+| Audio meaning | Lab target | Do not substitute |
+| --- | --- | --- |
+| Zero then seven | `07` | `7` |
+| Seven twice | `77` | `7` |
+| One digit zero | `0` | CTC blank |
+| No speech | Outside this training set | An invented digit label |
+
+The model has no token for a space, punctuation or arbitrary letters. A sentence from another dataset cannot be pushed through this vocabulary by deleting everything unsupported; that would silently redefine the labels.
+
+## Validate Labels
+
+```python
+vocabulary = set('0123456789')
+for row in rows:
+    assert 1 <= len(row['text']) <= 3
+    assert set(row['text']) <= vocabulary
+    assert len(row['files']) == len(row['text'])
+```
+
+For this assembled corpus, the source filenames provide the digit labels. For natural recordings, an annotation policy must address hesitations, repairs, unclear speech and overlapping speakers. Preserve a verbatim reference alongside any task-specific representation.
+
+## Scoring Policy
+
+Scoring uses a sequence of digit characters. It reports digit edit rate and full-string exact match. Calling this ordinary word error rate would hide the tokenisation choice. Later, [Word Errors](/learn/100x/stt/word-errors) makes the distinction executable.
+
+The [normalisation case study](/blog/the-normaliser-that-scored-itself) shows why preprocessing deserves its own tests. A policy change can move the score without changing a single acoustic prediction.
+
+<Checkpoint question="Would stripping leading zeros improve this recognizer?" answer="It might make the reported score look better while erasing the distinction the task is meant to preserve. Apply only transformations that the target contract permits." />
+
+Write three accepted target examples and three rejected ones before moving on. Keep this policy beside the [dataset manifest](/learn/100x/stt/dataset-inspection), and use it when defining [Entity Accuracy](/learn/100x/stt/entity-accuracy).

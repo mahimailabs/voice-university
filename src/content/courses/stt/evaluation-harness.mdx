@@ -1,0 +1,51 @@
+---
+lessonId: stt-lesson-019
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 19
+unit: 5
+unitTitle: "Recognition Evaluation"
+title: "Evaluation Harness"
+navTitle: "Evaluation Harness"
+summary: "Make model comparisons reproducible by retaining inputs, predictions, policy and provenance together."
+seoTitle: "Evaluation Harness for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+The harness is the boundary around a comparison. It should let another reader reconstruct which examples were scored, how outputs became strings and which model produced them. A single percentage is not enough.
+
+## Report Contract
+
+| Evidence | Saved location |
+| --- | --- |
+| Dataset revision and runtime | `results.json` |
+| Source clips and split | `manifest.json` |
+| Epoch selection history | `history.json` |
+| Raw reference and hypothesis | `results.json` predictions |
+| Checkpoint identity | SHA-256 in `results.json` |
+| Channel and prefix probes | `probes.json` |
+
+The [lab download](/labs/stt/stt-lab.zip) includes the recorded run and executable source. Use a new output directory for a new experiment so earlier evidence is not silently replaced.
+
+## Comparison Protocol
+
+Freeze the evaluation examples and scoring policy. Change one meaningful factor, such as decoder width or training data. Save the new configuration, run it against the same examples and inspect paired differences.
+
+The training script writes validation summaries each epoch and selects the checkpoint before evaluating the development holdout. The earlier pilot disclosure still applies: these numbers are not an untouched final test.
+
+## Release Questions
+
+A production evaluation needs additional coverage: real channels, languages, speakers, silence, overlapping speech, longer identifiers and task outcomes. This lab deliberately provides none of those claims.
+
+<Checkpoint question="Two runs use different normalisers but the same dataset. Are their scores directly comparable?" answer="Not without accounting for that policy change. Preserve raw references and hypotheses, then rescore both under the same policy before attributing the difference to the model." />
+
+The [smoke-run case study](/blog/your-smoke-run-is-lying-to-you) explains why a functioning harness is not automatically a representative evaluation. Continue with [Beam Search](/learn/100x/stt/beam-search), using this contract to distinguish an implemented decoder experiment from a claim of improvement.

@@ -1,0 +1,58 @@
+---
+lessonId: stt-lesson-002
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 2
+unit: 1
+unitTitle: "Audio Foundations"
+title: "Speech Features"
+navTitle: "Speech Features"
+summary: "Turn samples into a time-frequency matrix and trace every dimension into the model."
+seoTitle: "Speech Features for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+Our recognizer consumes log-power spectra. We use ordinary FFT bins rather than a mel filter bank so the entire feature recipe fits in a few visible lines. This is a teaching choice, not a claim that linear frequency bins are better.
+
+## Feature Recipe
+
+The input rate is 8,000 samples per second. The implementation uses a 256-point transform, a 200-sample Hann window and an 80-sample hop. These are respectively 32, 25 and 10 milliseconds at that rate. The real-input spectrum has 129 bins.
+
+```python
+power = torch.stft(x, n_fft=256, hop_length=80,
+    win_length=200, window=torch.hann_window(200),
+    center=False, return_complex=True).abs().square()
+features = power.clamp_min(1e-8).log().T
+```
+
+The matrix is time × frequency. The clamp prevents the logarithm of zero. Consult the [PyTorch STFT interface](https://docs.pytorch.org/docs/2.14/generated/torch.stft.html) when changing window or centring behaviour; padding changes which input samples contribute to a frame.
+
+## Normalisation Scope
+
+The lab subtracts the whole feature matrix's scalar mean and divides by its scalar standard deviation. It does this independently for each utterance, without using another split's statistics. That removes one kind of dataset leakage, but it still needs the whole utterance.
+
+This recipe is therefore offline. When a prefix grows, its statistics change. Recomputing features on a longer prefix can change earlier frames even before the encoder sees them. Keep that fact for [Causal Context](/learn/100x/stt/causal-context).
+
+## Inspect Shapes
+
+```python
+from lab import features
+x = features(audio)  # audio from the previous lesson
+print(x.shape, x.mean().item(), x.std().item())
+assert x.shape[1] == 129
+```
+
+Record the frame count for two clips of different lengths. They share the frequency dimension, not the time dimension. [Batch Construction](/learn/100x/stt/batch-construction) will pad time and retain the true lengths.
+
+<Checkpoint question="Can we replace these spectra with 80-bin mels at inference?" answer="Not with the same trained input layer and recipe. The shape would change, and even matching shapes do not establish matching feature semantics. Save preprocessing with the checkpoint." />
+
+Your output is a feature tensor with a documented rate, window, hop, transform size and normalisation scope. A spectrogram picture is useful only if you can reproduce the numbers behind it.

@@ -1,0 +1,43 @@
+{
+  "course": "tts",
+  "unit": 6,
+  "version": "1",
+  "questions": [
+    {
+      "id": "tts-6-1",
+      "prompt": "A system has a good aggregate speech metric. What is still needed?",
+      "options": [
+        "Listening and task-specific error checks",
+        "No further evaluation",
+        "Only an automatic naturalness score"
+      ],
+      "correct": 0,
+      "explanation": "Aggregate metrics can miss names, numbers, repetition and other task-critical errors.",
+      "lesson": "/learn/100x/tts/tts-evaluation-metrics"
+    },
+    {
+      "id": "tts-6-2",
+      "prompt": "Why measure time to first playable audio separately from total generation time?",
+      "options": [
+        "They are always identical",
+        "Only total duration affects a conversation",
+        "Callers experience the initial wait as well as playback continuity"
+      ],
+      "correct": 2,
+      "explanation": "Streaming can start playback before synthesis finishes. Initial latency and sustained delivery are distinct.",
+      "lesson": "/learn/100x/tts/ttfa-vs-ttfb"
+    },
+    {
+      "id": "tts-6-3",
+      "prompt": "The voice sounds natural but reads 15 as 50. How should you classify it?",
+      "options": [
+        "A harmless style difference",
+        "A content failure",
+        "A pass because naturalness is high"
+      ],
+      "correct": 1,
+      "explanation": "Naturalness does not compensate for speaking the wrong information.",
+      "lesson": "/learn/100x/tts/tts-hallucinations"
+    }
+  ]
+}

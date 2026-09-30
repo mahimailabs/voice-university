@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-011
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 11
 unit: 3
-unitTitle: 'The text front end'
-title: 'TTS pronunciation control: dictionaries, phoneme input and SSML phoneme tags'
-navTitle: 'Pronunciation control'
+unitTitle: 'Text Processing'
+title: 'Pronunciation Control'
+navTitle: 'Pronunciation Control'
 summary: 'Our model has 29 input symbols and one pronunciation control: spelling. What a phoneme front end adds, from lexicon entries to SSML, and when a word needs data.'
 seoTitle: 'TTS Pronunciation Control: Lexicons, IPA, SSML | Mahimai'
 keywords:
@@ -23,16 +24,18 @@ faq:
   - q: 'When is a pronunciation problem a reason to fine-tune?'
     a: 'When fixing words one at a time does not shrink the failure list. Fix ten failures by hand and re-run: if the list gets shorter and stays short, keep a dictionary. If new failures keep arriving at the same rate, the model has not learned a pattern, such as an accent or a domain register, and that needs data.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Practice from '../../../components/course/Practice.astro';
 
 Our tiny model has 29 input symbols and exactly one pronunciation control: how you spell the word. There is no phoneme input, no dictionary and no markup. If it says a name wrong, the only thing you can change is the letters you send.
 
-Most engines give you more than that. This page walks through the levers in order of cost, from respelling to lexicon entries to phoneme input and SSML, then the test that tells you when none of them is enough.
+Check which input controls your engine supports: respelling, lexicon entries, phoneme input or SSML. Test one correction before collecting training data.
 
-## How do you fix how a TTS model pronounces one word?
+## Correction Options
 
 You override the text front end for that word, at the cheapest layer the engine exposes. There are four layers, and which ones exist depends on whether the model reads characters or phonemes:
 
@@ -45,7 +48,7 @@ You override the text front end for that word, at the cheapest layer the engine 
 
 Respelling is the only one available to us. It works because the character model has learned a mapping from letter patterns to sounds, so you pick letters whose usual sound is the one you want. It is also fragile: the respelling that works on one model may not on the next, and every caller has to apply it. In a pipeline, it belongs in the normaliser, as a lookup that runs before the number rules in [text normalisation](/learn/100x/tts/text-normalisation-tts), so the fix lives in one place.
 
-## What is a pronunciation dictionary in TTS?
+## Pronunciation Lexicons
 
 A pronunciation dictionary, or lexicon, maps a written word to its phonemes, and the front end consults it before falling back to G2P. Add an entry for a product name or a drug name, and every sentence containing it uses your pronunciation from then on.
 
@@ -53,7 +56,7 @@ That order is the design of most phoneme front ends. NVIDIA's [NeMo G2P document
 
 Two properties make a lexicon the workhorse. It is global, so one entry fixes the word everywhere. And it is data, so it can be reviewed, versioned and tested like any other config. Heteronyms are its blind spot: one entry per spelling cannot say "read" two ways, which is why G2P models read context.
 
-## How do you pass phonemes or IPA directly to a TTS engine?
+## Phoneme Overrides
 
 Engines that run a phonemizer usually let you bypass it for part of the input. Piper, which uses espeak-ng for phonemes, documents this in its [CLI guide](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md): "You can inject raw espeak-ng phonemes with `[[ <phonemes> ]]` blocks." The guide's example:
 
@@ -69,7 +72,7 @@ espeak-ng -v en-us --ipa=3 -q batman
 
 We did not run these overrides; this is Piper's documented interface. The workflow it implies is the useful part. Start from what espeak-ng emits for a word you can spell and edit only the sounds that are wrong, so the symbols match what the model was trained on.
 
-## Does SSML support phoneme tags?
+## SSML Phonemes
 
 Yes, as a standard element that each engine may or may not implement. The W3C [SSML 1.1 specification](https://www.w3.org/TR/speech-synthesis11/#S3.1.10) defines `phoneme` with a required `ph` attribute holding the pronunciation and an optional `alphabet` attribute, and says synthesis processors "SHOULD support a value for alphabet of 'ipa'". Anything beyond that is at the processor's discretion.
 
@@ -84,13 +87,13 @@ Amazon Polly is one engine that documents it. Its [phoneme tag page](https://doc
 
 Check your own engine's docs, then test the tag on the word you care about. Depending on the engine, markup it does not support may be rejected, ignored or read aloud, and an ignored tag leaves exactly the pronunciation you were trying to fix.
 
-## What is the fix-ten-by-hand test?
+## Manual Corrections
 
 Take your list of pronunciation failures, fix ten of them by hand with a normaliser rule or a dictionary entry, and run the list again. If it gets shorter and stays short, you have a dictionary problem. If new failures keep arriving at the same rate, you have a distribution problem.
 
 Our hard set illustrates the split. The digit failures were one class with one fix: adding a normaliser took the tiny model from 64.4% to 35.6% hard-set WER at step 1,650, in our harness on a 4-core cloud container with no GPU. That figure flatters the normaliser: the scorer builds its reference with the same normaliser, so its phone-number and leading-zero mistakes count as correct (the [text normalisation](/learn/100x/tts/text-normalisation-tts) lesson lists the caveats). Names such as Saoirse and Nguyen are individual items, the textbook case for a lexicon entry, on an engine that has one. The long agent-style sentence is different. Our model turned "refund policy" into "revenge quality" and "the bank" into "the back" (26% WER on that sentence, at step 1,650), in ordinary words with no digits or rare names. A dictionary entry per word would chase that forever, because the model is short of data, not short of entries.
 
-## When does pronunciation need data instead of a dictionary?
+## Adaptation Criteria
 
 When the failures are a pattern the model has not learned: an accent or dialect it renders as its nearest neighbour, a domain register where rhythm and vocabulary are unusual together, or, in our case, a model trained on 0.74 hours of audio. No lexicon changes a vowel system.
 
@@ -101,5 +104,10 @@ When the failures are a pattern the model has not learned: an accent or dialect 
   engine once and keep the ones it gets wrong. For each, write the fix at the cheapest layer the
   engine has, add the word to a fixed test sentence, and re-run the whole list after every change.
 </Practice>
+
+<Checkpoint
+  question="Will an IPA override work on our character model?"
+  answer="No. It has no IPA input contract. Use supported character normalisation or change the front end and retrain the affected model."
+/>
 
 Next: [how text-to-speech works](/learn/100x/tts/how-text-to-speech-works), where the symbols from this front end meet the acoustic model.

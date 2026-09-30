@@ -1,0 +1,51 @@
+---
+lessonId: stt-lesson-026
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 26
+unit: 7
+unitTitle: "Streaming Recognition"
+title: "Endpoint Boundaries"
+navTitle: "Endpoint Boundaries"
+summary: "Separate recognition segments, voice activity and the decision that a caller has finished speaking."
+seoTitle: "Endpoint Boundaries for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+A recognizer can finalize a segment while the caller is still thinking about the next part of an identifier. Treating every final transcript as permission to reply can interrupt the caller even when recognition is correct.
+
+## Separate Decisions
+
+<LearnDiagram name="stt-turns" caption="Recognition updates and speech activity inform a separate turn decision. Only the application decides when to respond or act." />
+
+Voice activity estimates whether speech is present. Recognition turns acoustic evidence into token hypotheses. End-of-turn logic decides whether the conversation should advance. Each can fail independently.
+
+The [streaming result definition](https://docs.cloud.google.com/speech-to-text/docs/reference/rest/v2/StreamingRecognitionResult) describes finality for a result segment. It does not establish that every application should treat that segment as a complete user turn.
+
+## Paused Identifier
+
+Consider “my code is zero seven … seven.” A silence threshold might split the sentence before the final digit. The correct threshold depends on the conversational policy and measured behaviour; the tiny dataset's inserted pauses cannot establish a universal production value.
+
+| Event | Safe interpretation |
+| --- | --- |
+| No recent speech | Acoustic pause observed |
+| Final transcript segment | Recognizer committed that segment |
+| Identifier format valid | Value passes the format rule |
+| Turn accepted | Application policy permits advancing |
+
+## Test Recovery
+
+Create scenarios for a continued digit, a correction and an interruption after the agent begins speaking. Retain the timeline of audio, transcripts and application decisions. A transcript-only log cannot reveal when the agent actually spoke over the caller.
+
+<Checkpoint question="The recognizer finalized two digits. Can the agent assume the caller's three-digit code is complete?" answer="No. Segment finality and task completeness are different. The application needs context and a policy for waiting, clarification or confirmation." />
+
+The [turn-detection guide](/learn/components/turn-detection) develops those policies. Finish the course with [Serving Measurements](/learn/100x/stt/serving-measurements), where timing boundaries and the limits of the trained baseline become part of the final report.

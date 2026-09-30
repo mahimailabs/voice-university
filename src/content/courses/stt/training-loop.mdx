@@ -1,0 +1,64 @@
+---
+lessonId: stt-lesson-012
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 12
+unit: 4
+unitTitle: "Training Experiments"
+title: "Training Loop"
+navTitle: "Training Loop"
+summary: "Train the random-weight recognizer and save enough evidence to explain every checkpoint."
+seoTitle: "Training Loop for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+The model does learn this constrained task, but it does not become a reliable general recognizer. The recorded 60-epoch run took 52.249 seconds for training plus per-epoch validation on an ARM Mac CPU with four PyTorch threads. Dataset preparation and later evaluation are outside that timer.
+
+## Run Training
+
+```sh
+python lab.py --data fsdd --out my-run --epochs 60 --threads 4
+```
+
+The run uses seed 17, batches of 16, AdamW at learning rate 0.002 and gradient clipping at norm five. These settings describe this experiment; they are not defaults for every speech model. Hardware, library versions and numerical kernels can change results.
+
+```python
+opt.zero_grad()
+log_probs, lengths = model(x, input_lengths)
+loss = criterion(log_probs, targets, lengths, target_lengths)
+if not torch.isfinite(loss):
+    raise ValueError('Inspect CTC lengths and targets')
+loss.backward()
+torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
+opt.step()
+```
+
+## Small Sanity Run
+
+Before modifying the architecture, use a tiny fixed set and confirm that training can memorise it. That checks the relationship between features, targets, lengths and decoding; it is not an accuracy result. The `overfit.py` exercise performs this check. In the recorded sanity run, all eight training examples matched after 300 updates. That result measures memorisation only; it does not improve the held-out score.
+
+If memorisation fails, inspect one decoded path and its label before adding layers. A wrong blank index cannot be fixed by more compute.
+
+## Saved Evidence
+
+| File | Purpose |
+| --- | --- |
+| `manifest.json` | Source recordings and split membership |
+| `history.json` | Training loss and validation decoding by epoch |
+| `best.pt` | Checkpoint chosen using validation digit error rate |
+| `results.json` | Evaluation predictions, runtime scope and provenance |
+
+The lab code and pinned requirements are in [the download](/labs/stt/stt-lab.zip). The loss uses the documented [CTC API](https://docs.pytorch.org/docs/2.14/generated/torch.nn.CTCLoss.html).
+
+<Checkpoint question="The loss is lower after another epoch. Should that checkpoint replace the current one?" answer="Not on training loss alone. Compare the declared validation metric and inspect decoded failures. A better fit to training sequences can coexist with worse held-out recognition." />
+
+Read [Learning Curves](/learn/100x/stt/learning-curves) before interpreting the log, and preserve the split disclosure from [Speaker Splits](/learn/100x/stt/speaker-splits).

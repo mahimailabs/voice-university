@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="249" height="594" viewBox="0 0 249 594" font-family="'DejaVu Sans Mono', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace" font-size="14px">
+  <defs>
+    <marker id="arrow-55555c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55555c"/>
+    </marker>
+    <marker id="arrow-55555c-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55555c"/>
+    </marker>
+    <marker id="arrow-6f3fb0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f3fb0"/>
+    </marker>
+    <marker id="arrow-6f3fb0-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f3fb0"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="249" height="594" fill="#fcfcfc"/>
+  <g transform="translate(100.5 40) scale(2)">
+    <path d="M12 2.6 L20.4 6.800000000000001 L12 11 L3.5999999999999996 6.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M3.5999999999999996 6.800000000000001 L12 11 L12 19.400000000000002 L3.5999999999999996 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M20.4 6.800000000000001 L12 11 L12 19.400000000000002 L20.4 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="18px">
+  <text x="124.5" y="116.3" fill="#0a0a0a" text-anchor="middle">Language model</text>
+  </g>
+  <path d="M48 178 H193 L209 194 V246 a8 8 0 0 1 -8 8 H48 a8 8 0 0 1 -8 -8 V186 a8 8 0 0 1 8 -8 Z" fill="#fcfcfc" stroke="#95959d"/>
+  <path d="M193 178 V194 H209" fill="none" stroke="#95959d"/>
+  <g font-size="18px">
+  <text x="124.5" y="210.3" fill="#0a0a0a" text-anchor="middle">Proposed tool</text>
+  <text x="124.5" y="234.3" fill="#0a0a0a" text-anchor="middle">+ arguments</text>
+  </g>
+  <g transform="translate(100.5 310) scale(2)">
+    <path d="M6.6 2.6 L11 4.800000000000001 L6.6 7 L2.1999999999999993 4.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M2.1999999999999993 4.800000000000001 L6.6 7 L6.6 11.4 L2.1999999999999993 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M11 4.800000000000001 L6.6 7 L6.6 11.4 L11 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M17.4 2.6 L21.799999999999997 4.800000000000001 L17.4 7 L12.999999999999998 4.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M12.999999999999998 4.800000000000001 L17.4 7 L17.4 11.4 L12.999999999999998 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M21.799999999999997 4.800000000000001 L17.4 7 L17.4 11.4 L21.799999999999997 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M12 11.6 L16.4 13.8 L12 16 L7.6 13.8 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M7.6 13.8 L12 16 L12 20.4 L7.6 18.2 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M16.4 13.8 L12 16 L12 20.4 L16.4 18.2 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="18px">
+  <text x="124.5" y="386.3" fill="#0a0a0a" text-anchor="middle">Application</text>
+  <text x="124.5" y="410.3" fill="#0a0a0a" text-anchor="middle">validation</text>
+  </g>
+  <g transform="translate(100.5 472) scale(2)">
+    <path d="M1.2 2.6 h12.4 v9.2 h-12.4 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M6.3 11.8 h2.2 v1.7 h-2.2 Z" fill="#57606a"/>
+    <path d="M4.2 13.5 h6.4 v1.1 h-6.4 Z" fill="#57606a"/>
+    <path d="M1.2 16.4 h12.4 v3.2 h-12.4 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M2.6 17.6 h7.8 v0.9 h-7.8 Z" fill="#57606a"/>
+    <path d="M16.2 2.6 h6.6 v17 h-6.6 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M18.6 5.2 a0.9 0.9 0 1 0 1.8 0 a0.9 0.9 0 1 0 -1.8 0 Z" fill="#57606a"/>
+    <path d="M17.4 9.4 h4.2 v0.7 h-4.2 Z M17.4 11.4 h4.2 v0.7 h-4.2 Z M17.4 13.4 h4.2 v0.7 h-4.2 Z" fill="#57606a"/>
+  </g>
+  <g font-size="18px">
+  <text x="124.5" y="548.3" fill="#0a0a0a" text-anchor="middle">Business system</text>
+  </g>
+  <line x1="124.5" y1="122" x2="124.5" y2="178" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <line x1="124.5" y1="254" x2="124.5" y2="310" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <line x1="124.5" y1="416" x2="124.5" y2="472" stroke="#6f3fb0" stroke-width="1.6" marker-end="url(#arrow-6f3fb0)"/>
+</svg>

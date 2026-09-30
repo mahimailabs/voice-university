@@ -1,0 +1,43 @@
+{
+  "course": "livekit",
+  "unit": 5,
+  "version": "1",
+  "questions": [
+    {
+      "id": "livekit-5-1",
+      "prompt": "CPU is low, yet new calls fail near a repeatable load. What else can limit capacity?",
+      "options": [
+        "Only the monthly audio volume",
+        "Sockets, ports, networking or other resources",
+        "Nothing; low CPU proves spare capacity"
+      ],
+      "correct": 1,
+      "explanation": "CPU is one resource. Inspect actual failure evidence and configured transport rather than assuming a universal port-per-call ratio.",
+      "lesson": "/learn/100x/livekit/livekit-port-exhaustion"
+    },
+    {
+      "id": "livekit-5-2",
+      "prompt": "Why can CPU-only autoscaling miss a setup bottleneck?",
+      "options": [
+        "Arrival pressure can exhaust admission before CPU is high",
+        "Every setup failure is a CPU failure",
+        "Autoscaling removes all bottlenecks"
+      ],
+      "correct": 0,
+      "explanation": "Use signals that reflect the stressed layer, including queueing, dispatch delay and errors.",
+      "lesson": "/learn/100x/livekit/voice-autoscaling-signal"
+    },
+    {
+      "id": "livekit-5-3",
+      "prompt": "How should a capacity estimate be validated?",
+      "options": [
+        "Multiply a single successful call by fleet size",
+        "Use monthly minutes as peak concurrency",
+        "Load-test the proposed fleet and failure scenarios"
+      ],
+      "correct": 2,
+      "explanation": "Capacity is constrained by multiple resources and traffic shape. Monthly volume does not establish peak load.",
+      "lesson": "/learn/100x/livekit/voice-capacity-model"
+    }
+  ]
+}

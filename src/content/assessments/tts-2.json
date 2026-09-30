@@ -1,0 +1,43 @@
+{
+  "course": "tts",
+  "unit": 2,
+  "version": "1",
+  "questions": [
+    {
+      "id": "tts-2-1",
+      "prompt": "Before training, what should you do with a random sample of audio/text pairs?",
+      "options": [
+        "Discard the transcripts",
+        "Listen and compare the text against the audio",
+        "Trust all filenames as transcripts"
+      ],
+      "correct": 1,
+      "explanation": "Spot checks reveal clipping, silence, transcript mismatch and inconsistent recording quality.",
+      "lesson": "/learn/100x/tts/ljspeech-dataset"
+    },
+    {
+      "id": "tts-2-2",
+      "prompt": "Does a publicly downloadable voice dataset automatically permit every commercial use?",
+      "options": [
+        "No; inspect its terms and relevant permissions",
+        "Yes; public access means unrestricted use",
+        "Yes; a citation replaces all permissions"
+      ],
+      "correct": 0,
+      "explanation": "Availability is not a grant of every usage right. The lesson asks you to verify the actual dataset terms and speaker permissions.",
+      "lesson": "/learn/100x/tts/tts-dataset-licensing"
+    },
+    {
+      "id": "tts-2-3",
+      "prompt": "A forced aligner produces timestamps. What does that establish?",
+      "options": [
+        "Proof that the transcript is correct",
+        "Proof that synthesis will be natural",
+        "An alignment hypothesis that still needs inspection"
+      ],
+      "correct": 2,
+      "explanation": "Alignment conditions on the supplied transcript. Bad transcripts can still yield plausible-looking timestamps.",
+      "lesson": "/learn/100x/tts/forced-alignment-tts"
+    }
+  ]
+}

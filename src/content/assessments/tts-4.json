@@ -1,0 +1,43 @@
+{
+  "course": "tts",
+  "unit": 4,
+  "version": "1",
+  "questions": [
+    {
+      "id": "tts-4-1",
+      "prompt": "In a text-to-mel pipeline, what does the acoustic model predict?",
+      "options": [
+        "A transcript alignment for the recognizer",
+        "The vocoder\u2019s learned weights",
+        "Acoustic features for a vocoder"
+      ],
+      "correct": 2,
+      "explanation": "The acoustic model maps text representations to features such as mels; a vocoder produces the waveform.",
+      "lesson": "/learn/100x/tts/how-text-to-speech-works"
+    },
+    {
+      "id": "tts-4-2",
+      "prompt": "Predicted phoneme durations are too short. What symptom would you inspect?",
+      "options": [
+        "Longer pauses between every phoneme",
+        "Rushed speech or missing articulation",
+        "More frames per phoneme"
+      ],
+      "correct": 1,
+      "explanation": "Durations determine how text units expand over frames. Short durations can compress articulation.",
+      "lesson": "/learn/100x/tts/tts-duration-prediction"
+    },
+    {
+      "id": "tts-4-3",
+      "prompt": "Training improves but held-out samples degrade. What should decide the next checkpoint?",
+      "options": [
+        "Held-out evidence, including listening",
+        "Training loss alone",
+        "The latest file timestamp"
+      ],
+      "correct": 0,
+      "explanation": "Training fit is insufficient. Use validation measurements and listen to fixed held-out examples.",
+      "lesson": "/learn/100x/tts/train-tts-model-from-scratch"
+    }
+  ]
+}

@@ -1,88 +1,77 @@
 ---
-title: What makes a good speech-to-text model for a voice agent
+title: Speech recognition for voice agents
 label: Speech to text
 tag: STT
-description: 'Speech to text is the part of a voice agent that turns what a caller says into words. This guide covers what makes it good on a real phone call, and the mistakes that quietly break calls.'
+description: 'Evaluate streaming transcripts, critical entities and phone audio before choosing an STT model.'
 order: 1
-updatedDate: 2026-08-19
+updatedDate: 2026-09-30
+cover: ./images/stt-cover.webp
+coverAlt: An engineer listens to speech and inspects waveform strips beside transcript cards.
+socialImage: ./images/stt-social.jpg
 related:
   - { label: 'Turn detection', href: '/learn/components/turn-detection' }
   - { label: 'Latency calculator', href: '/tools/latency-calculator' }
   - { label: 'Custom speech models', href: '/services/custom-speech-models' }
 ---
 
-import Figure from '../../components/learn/Figure.astro';
-import SttAvgWorstCase from '../../components/learn/figures/SttAvgWorstCase.astro';
-import SttThePause from '../../components/learn/figures/SttThePause.astro';
+import LearnDiagram from '../../components/learn/LearnDiagram.astro';
+import Checkpoint from '../../components/learn/Checkpoint.astro';
 
-Everything a voice agent does after this runs on the words it writes down: understanding the question, looking something up, replying. Get those words wrong and nothing later can fix it, so this quiet first step decides more calls than anything else in the stack.
+A caller says an order number. The transcript looks fluent, but one digit is wrong. The agent can now make a perfectly valid request for the wrong order.
 
-Two quick terms before we go on. A voice agent is the automated voice that answers the phone and talks to callers. The model is just the industry's word for the software doing the listening.
+Evaluate speech recognition at two levels: **what was transcribed, and what the application can safely use**. Keep transcript quality, entity correctness and response timing as separate measurements.
 
-And most of that software was never built for phone calls. It was built to type up a recording after the fact, like a court transcript. That is a different job, and that difference is the whole reason a model can look great in a demo and still fall apart on a live call.
+## Streaming Results
 
-## Typing up a recording is not the same as listening in a conversation
+A streaming recognizer returns hypotheses while audio is arriving. Earlier words may change as later sounds provide context. A final result closes a recognition segment; it does not necessarily mean the caller has finished their turn.
 
-When you type up a recording, you have all the time in the world. You can wait for the whole sentence, think about it, and only then write it down. Accuracy is the only thing that matters, because a person reads it later.
+Google’s [streaming result reference](https://docs.cloud.google.com/speech-to-text/docs/reference/rest/v2/StreamingRecognitionResult) distinguishes interim stability from finality. Stability estimates whether a hypothesis will change, not whether it is correct.
 
-A live phone call is the opposite. The agent has to start working out what the caller said while they are still talking, because the caller is waiting for an answer. Now two things matter at once: getting the words right, and getting them fast. And here is the problem: the faster the model goes, the more mistakes it makes. Nearly every model has to trade accuracy for speed, or speed for accuracy. A demo hides that trade. A real call puts it on display.
+<LearnDiagram name="stt" caption="Recognition produces text. The application separately decides when to respond and whether an entity is safe to use." />
 
-## One accuracy number can hide the callers it fails
+Use partial results for captions or reversible preparation. Before committing an external action, check the required fields against the latest accepted input. [Turn detection](/learn/components/turn-detection) owns the separate decision about when the agent may speak.
 
-Companies love to show a single score. "95% accurate." It sounds great. But that number is an average across thousands of test calls, and no real caller is average. Each caller only ever experiences their own call.
+## Entity Accuracy
 
-Think of a restaurant with 4.5 stars. That average can hide the fact that most nights are wonderful and a few nights are a disaster. If you walk in on a disaster night, the average does not help you.
+Word error rate counts substitutions, deletions and insertions relative to reference words. It gives every word edit equal weight. Your workflow probably does not.
 
-Speech to text is the same. Two models can both score "95% accurate." One is good for everyone. The other is great for most people and terrible for anyone with an accent, an older voice, or a noisy room. On paper they look identical. In real life the second one quietly ruins one call in twenty, and nobody notices, because the average stays high.
+This is a constructed example, not a model benchmark:
 
-> So do not ask how accurate it is on average. Ask how bad it gets on your worst callers. The worst case is what loses customers. The average just keeps the numbers looking calm.
+| Reference | Hypothesis | WER | Order number |
+| --- | --- | --- | --- |
+| Please check order seven two nine | Please check order seven two five | 1 / 6 = 16.7% | Wrong |
+| Please check order seven two nine | Check order seven two nine | 1 / 6 = 16.7% | Correct |
 
-<Figure label="the average hides the worst case" filled>
-  <SttAvgWorstCase />
-</Figure>
+Report exact entity match alongside WER. Define formatting rules before scoring: an order identifier may need leading zeros, while a quantity may not. Keep raw text so a later [normalisation fix](/blog/the-normaliser-that-scored-itself) can be evaluated without rerunning recognition.
 
-## Why there is a pause before the agent answers
+<Checkpoint question="The order number has the expected length. Is it safe to look up?" answer="Length checks only establish format. A different valid identifier can still be wrong. Use domain evidence and targeted confirmation when ambiguity matters; format validation cannot recover a misheard digit." />
 
-You have probably heard it: you finish talking, and there is a short, awkward silence before the agent replies. Part of that silence comes from this step, so it helps to know which part.
+## Channel Conditions
 
-The model does two things, at two different speeds. While you are still talking, it shows its best guess of your words almost straight away. That part is fast. Then, once you stop, it takes a moment to finalise: to lock in the finished, tidied-up version of what you said. That finalising moment should be quick, because nothing else can use your words until they are final.
+Build the evaluation set from the audio path you will deploy. Include the actual codec, sample rate, language, accent, microphone and background conditions. Keep noisy and clean slices separate so one large, easy group does not hide a smaller failure group.
 
-Here is the honest limit of what this part controls. Speech to text does not decide whether you have actually finished talking or only paused to think. That is a separate job, done by a different part of the system, and it is where most of the awkward silence actually comes from. It has its own page: [turn detection](/learn/components/turn-detection). For speech to text, what you want is simple. Once you have stopped, it should hand over the final words quickly, so everything after it can get moving.
+Narrowband telephone audio removes information; upsampling cannot restore it. A [simulated phone channel](/blog/building-a-phone-line-in-pytorch) is useful for controlled comparisons, but recorded calls also contain device processing, overlap and network effects that a simple transform does not reproduce.
 
-There is one more speech-to-text quirk worth knowing. While you talk, it keeps updating its live guess, and sometimes it changes a word it already showed, like autocomplete correcting itself. If the agent tries to get a head start by acting on an early guess, and that guess then changes, it has acted on the wrong words. A model that keeps its guesses steady is more useful than a slightly faster one that keeps changing its mind.
+## Latency Budget
 
-<Figure label="where the silence comes from" filled>
-  <SttThePause />
-</Figure>
+Timestamp audio arrival, each partial revision and final segment delivery. Separately measure the caller’s last voiced sample to the first audible reply. The latter includes endpointing, model work, synthesis and playback.
 
-## Phone calls sound worse than the demo, and that matters
+Report a distribution under the expected load, not just the fastest request. A low first-partial time can coexist with late finalisation or frequent revisions. Compare candidates on the same recordings, streaming chunk schedule and scoring policy.
 
-Here is something almost nobody tests for. A phone call throws away a big part of the sound. Phones were built to carry just enough to understand a voice, so they cut out the high notes. That is why "s," "f," and "th" all sound alike on a phone, and why you sometimes have to spell things out.
+## Vocabulary Biasing
 
-The model has the exact same trouble. But nearly every accuracy test is done on clean recordings made in a quiet studio, not on scratchy phone audio. So that "95% accurate" number was measured on audio your caller will never actually use. On a real phone line the same model does clearly worse, and the demo never showed it.
+Phrase hints can help recognition of names and product codes, but aggressive biasing can also introduce words that were never spoken. Google’s [adaptation documentation](https://docs.cloud.google.com/speech-to-text/docs/v1/adaptation) describes this tradeoff.
 
-The fix is easy to say: test it on real phone-call audio, not clean recordings. If the company selling it only shows you clean-audio numbers, treat them as the best case, not the real one.
+Test hints against a held-out set containing both the target terms and similar-sounding alternatives. Keep the configuration that improves the relevant errors without introducing unacceptable false matches. Larger models, hints and fine-tuning are candidates to measure, not a prescribed upgrade order.
 
-## Noise, and the worst kind of noise
+## Evaluation Plan
 
-Real callers are in cars, kitchens, and busy offices. Background noise makes everything harder, but not all noise is equal. The worst kind is other people talking. A TV or a crowd behind the caller confuses the model far more than steady noise like a fan or engine noise from driving, because chatter sounds like speech too, and the model cannot tell which voice to follow.
+| Check | Evidence to retain |
+| --- | --- |
+| Transcript quality | Raw reference, hypothesis, normaliser version and edit counts |
+| Critical fields | Exact matches and errors grouped by entity type |
+| Streaming behaviour | Partial revisions, segment boundaries and timestamps |
+| Coverage | Results and sample counts by language and channel condition |
+| Action safety | Ambiguous inputs, clarification outcomes and rejected requests |
 
-So when you test, do not just try a quiet room. Turn up real background chatter and watch how quickly the model falls apart. There is a point where it stops being usable. You want to find that point before a caller does.
-
-## The words that matter are the ones it gets wrong
-
-This is the failure that catches almost everyone, and it is sneaky.
-
-The model will happily get all the small talk right, then mishear the one thing that actually mattered: the account number, the product name, the medication, the person's name. It hears "one five zero" as "one hundred and fifty," or turns a real surname into a common word that sounds similar. The overall accuracy score barely moves, because it is one word out of many. But that one word was the whole point of the call. Now the agent looks up the wrong thing, books the wrong thing, or charges the wrong amount.
-
-The worst part is that it does not know it got it wrong. It sounds just as sure about the mistake as about everything else. An agent that gets the chit-chat perfect and quietly corrupts every account number is worse than no agent at all.
-
-Because no system is perfect on these, the real safety net is to read the important bits back: "That is account four one five, is that right?" A good agent confirms the things that matter instead of assuming it heard them correctly.
-
-## The fix is usually a cheat sheet, not a bigger model
-
-When this happens, the instinct is to go and buy a smarter, more expensive model. It usually does not help, because those rare words, your product names and your customers' names, are rare for the big model too. It has barely heard them either.
-
-What actually works is giving the model a cheat sheet: a short list of the words and names it should expect on this call, handed to it just before it listens. Told what to look for, it gets those exact words right far more often, and it costs almost nothing. That is why the smart question for your business is not "which model is the most accurate," but "can I give it a list of my words."
-
-And when even a good model with a good cheat sheet still cannot keep up, that is the sign you need a model built specially for your callers, using recordings of real calls like yours, rather than another off-the-shelf one. That is a bigger project, and it is what our [custom speech](/services/custom-speech-models) work is for.
+Start with an annotated set small enough to inspect by hand. Expand it after the [sampling and scoring checks](/blog/your-smoke-run-is-lying-to-you) hold. Choose the model against explicit acceptance criteria for your calls; a single aggregate score cannot make that decision.

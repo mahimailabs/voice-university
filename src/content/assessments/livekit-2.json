@@ -1,0 +1,43 @@
+{
+  "course": "livekit",
+  "unit": 2,
+  "version": "1",
+  "questions": [
+    {
+      "id": "livekit-2-1",
+      "prompt": "What does Redis support in a distributed LiveKit deployment?",
+      "options": [
+        "Replacing all worker processes",
+        "Coordination and routing state",
+        "Encoding every audio sample"
+      ],
+      "correct": 1,
+      "explanation": "Redis supports distributed coordination. It is not the audio codec or the agent execution runtime.",
+      "lesson": "/learn/100x/livekit/livekit-multi-node-redis"
+    },
+    {
+      "id": "livekit-2-2",
+      "prompt": "Signalling connects, but media fails behind a firewall. What should you inspect?",
+      "options": [
+        "ICE candidates and media connectivity",
+        "Only the language-model prompt",
+        "Only the SIP response code"
+      ],
+      "correct": 0,
+      "explanation": "A successful signalling path does not establish a working media path. Check candidate reachability and firewall configuration.",
+      "lesson": "/learn/100x/livekit/livekit-one-way-audio-nat"
+    },
+    {
+      "id": "livekit-2-3",
+      "prompt": "When direct media connectivity fails, what can TURN provide?",
+      "options": [
+        "Better transcription vocabulary",
+        "Unlimited free bandwidth",
+        "A relay path"
+      ],
+      "correct": 2,
+      "explanation": "TURN relays traffic when required or configured; it does not improve the speech model and introduces relay resource costs.",
+      "lesson": "/learn/100x/livekit/livekit-turn-server-setup"
+    }
+  ]
+}

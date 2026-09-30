@@ -1,0 +1,65 @@
+{
+  "20": {
+    "digit_error_rate": 0.50390625,
+    "exact_match": 0.25833333333333336,
+    "edits": 129,
+    "reference_digits": 256,
+    "sequences": 120
+  },
+  "10": {
+    "digit_error_rate": 0.6015625,
+    "exact_match": 0.13333333333333333,
+    "edits": 154,
+    "reference_digits": 256,
+    "sequences": 120
+  },
+  "0": {
+    "digit_error_rate": 0.7890625,
+    "exact_match": 0.05,
+    "edits": 202,
+    "reference_digits": 256,
+    "sequences": 120
+  },
+  "prefix_trace": {
+    "reference": "183",
+    "events": [
+      {
+        "audio_ms": 200.0,
+        "hypothesis": "1"
+      },
+      {
+        "audio_ms": 400.0,
+        "hypothesis": ""
+      },
+      {
+        "audio_ms": 600.0,
+        "hypothesis": "6"
+      },
+      {
+        "audio_ms": 800.0,
+        "hypothesis": "8"
+      },
+      {
+        "audio_ms": 1000.0,
+        "hypothesis": "18"
+      },
+      {
+        "audio_ms": 1200.0,
+        "hypothesis": "18"
+      },
+      {
+        "audio_ms": 1315.0,
+        "hypothesis": "183"
+      }
+    ],
+    "method": "offline prefix recomputation, not stateful streaming"
+  },
+  "beam_probe": {
+    "reference": "183",
+    "greedy": "183",
+    "beam": "183",
+    "width": 10,
+    "decode_ms": 11.272416915744543,
+    "scope": "one development example"
+  }
+}

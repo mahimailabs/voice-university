@@ -1,0 +1,51 @@
+---
+lessonId: stt-lesson-025
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 25
+unit: 7
+unitTitle: "Streaming Recognition"
+title: "Partial Transcripts"
+navTitle: "Partial Transcripts"
+summary: "Replay actual prefix predictions and distinguish provisional text from committed output."
+seoTitle: "Partial Transcripts for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+A partial transcript is a hypothesis produced before all the evidence is available. Earlier characters can change when later audio arrives. The replay below uses saved outputs from our offline model applied to growing audio prefixes.
+
+## Replay Evidence
+
+<STTLab mode="partials" client:load />
+
+Each step adds up to 200 milliseconds of source audio. The last step uses the remaining samples. These are audio-prefix timestamps, not measured network arrival or response times. The model recomputes each prefix from scratch.
+
+## Revision Handling
+
+A consumer should know whether an update replaces an earlier hypothesis or appends new text. Blindly concatenating partial strings can duplicate tokens. Keep an utterance or segment identity, update sequence and explicit commitment state.
+
+[Google's streaming result schema](https://docs.cloud.google.com/speech-to-text/docs/reference/rest/v2/StreamingRecognitionResult) distinguishes interim stability from finality. That API's fields are not calibrated confidence values for this homemade model; do not copy the names and imply equivalent semantics.
+
+## Measure Revisions
+
+For each prefix, retain its audio boundary and hypothesis. Count changed suffixes or edit distance between consecutive hypotheses using a declared definition. A stable wrong output is still wrong, so report final recognition accuracy separately.
+
+```python
+for event in probes['prefix_trace']['events']:
+    print(event['audio_ms'], event['hypothesis'])
+```
+
+The trace is one example. It demonstrates a mechanism rather than estimating the probability of revisions across callers.
+
+<Checkpoint question="Should the application run a business action from the first plausible partial identifier?" answer="Only if the action is explicitly safe to speculate and reversible. Critical actions need a declared commitment and validation policy; a plausible partial can change." />
+
+[Endpoint Boundaries](/learn/100x/stt/endpoint-boundaries) explains why a final segment still does not necessarily authorize a conversational reply. Keep the [entity checks](/learn/100x/stt/entity-accuracy) at the action boundary.

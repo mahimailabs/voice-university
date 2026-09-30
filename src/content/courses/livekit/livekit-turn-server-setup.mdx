@@ -1,11 +1,12 @@
 ---
+lessonId: livekit-lesson-009
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 9
 unit: 2
-unitTitle: 'Self-hosting the stack'
-title: 'LiveKit TURN server setup: TLS certificates and firewall rules'
-navTitle: 'TURN, TLS, and firewalls'
+unitTitle: 'Self-Hosted Stack'
+title: 'TURN Relay'
+navTitle: 'TURN Relay'
 summary: 'Some callers can only reach you on TCP 443. Without TURN their sessions never start, and no metric notices. The TURN config, the certificates, and five firewall rules.'
 seoTitle: 'LiveKit TURN Server Setup, TLS and Firewall Rules | Mahimai'
 keywords:
@@ -16,7 +17,7 @@ keywords:
   - 'force TURN relay WebRTC'
 proficiency: 'Intermediate'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 faq:
   - q: 'Do I need a separate TURN server for self-hosted LiveKit?'
     a: 'No. LiveKit embeds a TURN server. You enable it in livekit.yaml, give it a domain that matches a TLS certificate, and open its port on the firewall.'
@@ -26,21 +27,21 @@ faq:
     a: 'Force a test client to use only relay candidates, for example by passing rtcConfig with iceTransportPolicy set to relay when connecting with the LiveKit JS SDK, and confirm audio flows both ways.'
 ---
 
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+
 import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
 
 A caller on hotel Wi-Fi opens your app. UDP is blocked. So is every TCP port except 443.
 
-Without a relay path that session never starts, and the failure is invisible in your metrics because no session was ever established. Corporate firewalls and certain mobile carriers do the same. TURN is that relay path.
+Without a working fallback that session may fail. Client-side connection telemetry should record it even when no room connection completes. Corporate firewalls and certain mobile carriers do the same. TURN is that relay path.
 
-By the end you'll have the TURN section of `livekit.yaml`, a certificate plan that survives renewal, the five firewall rules that must match config, and a way to test the relay on purpose.
+## ICE Selection
 
-## How does WebRTC decide when to use TURN?
+ICE checks candidate pairs and selects a working path according to priority and policy. It is not a strict three-step waterfall. A relay candidate provides a path when direct connectivity fails or when policy requires relaying.
 
-WebRTC tries candidates in order of preference: direct UDP, then TCP fallback, then a TURN relay. Most users connect directly. The relay exists for the remainder. In production, the remainder is never zero.
+That ordering is ICE, specified in [RFC 8445](https://www.rfc-editor.org/rfc/rfc8445), and the relay itself is TURN, [RFC 8656](https://www.rfc-editor.org/rfc/rfc8656): the client allocates an address on the TURN server, and media flows through it. TURN/TLS on port 443 can traverse networks that allow that destination and protocol. It is not HTTPS and deep inspection or an explicit proxy can still block it.
 
-That ordering is ICE, specified in [RFC 8445](https://www.rfc-editor.org/rfc/rfc8445), and the relay itself is TURN, [RFC 8656](https://www.rfc-editor.org/rfc/rfc8656): the client allocates an address on the TURN server, and media flows through it. Relayed traffic over TLS on port 443 looks like ordinary HTTPS to a firewall, which is exactly why it gets through the networks that block everything else.
-
-## The TURN section of livekit.yaml
+## TURN Configuration
 
 LiveKit embeds a TURN server, so this is configuration, not a new deployment. Enable it, give it a domain, and put a TLS certificate on it, using the keys below from LiveKit's [deployment guide](https://docs.livekit.io/transport/self-hosting/deployment/) and config sample:
 
@@ -60,20 +61,20 @@ turn:
 Three details catch people:
 
 - `tls_port` defaults to 5349, and that is the port clients are told to use. Leave it there without a load balancer and the restrictive networks you enabled TURN for still can't reach it.
-- TURN needs its own domain and its own certificate, separate from the signalling domain.
+- Give TURN a hostname covered by its trusted certificate. A certificate can cover multiple names; the listener and routing still need to be configured correctly.
 - If the same IP already terminates signalling TLS on 443, two listeners can't share it. Give TURN its own address, or put a layer 4 load balancer in front and set `external_tls: true` so LiveKit expects unencrypted traffic on `tls_port` while still advertising it as TURN/TLS.
 
 Some networks now pass UDP on 443 because of QUIC, so if that fits your callers, `udp_port: 443` enables TURN/UDP there.
 
-## Certificates that renew themselves
+## Certificate Renewal
 
 The signalling endpoint and the TURN endpoint both need valid TLS from a trusted authority. Self-signed certificates do not work. Terminate at the server with certificates you renew automatically, and make sure the renewal job reaches both.
 
 An expired certificate produces the worst class of outage. Web clients fail. Phone calls through the SIP path keep working. Put together, those two facts point everywhere except the certificate, which is why the expiry date of both certificates belongs on a dashboard next to call volume.
 
-## The complete firewall picture: five rules
+## Firewall Rules
 
-Every rule pairs with one config value, and the pair must match exactly. Here is the full set for a stack with the SFU, TURN and the SIP service, using the defaults from earlier lessons:
+Every rule pairs with one config value, and the pair must cover the configured ports. Here is the full set for a stack with the SFU, TURN and the SIP service, using the defaults from earlier lessons:
 
 | Rule             | Port        | Protocol | Must match                                   |
 | ---------------- | ----------- | -------- | -------------------------------------------- |
@@ -95,7 +96,7 @@ Two 443 rows means two addresses (or a load balancer), per the section above. Ad
 
 We close [unit 2](/learn/100x/livekit#unit-2) with this table because several of the failures in [unit 5](/learn/100x/livekit#unit-5), starting with [port exhaustion](/learn/100x/livekit/livekit-port-exhaustion), trace back to a mismatch between what a config promised and what a firewall permitted.
 
-## Test the relay path on purpose
+## Relay Testing
 
 Force TURN in a test client and confirm audio flows; with the LiveKit JS SDK, that means restricting ICE to relay candidates when you connect:
 
@@ -107,10 +108,15 @@ await room.connect(url, token, {
 
 If audio flows both ways, the relay works end to end: domain, certificate, port and firewall. If it doesn't, you've found the failure before a caller did. The relay is the path you never use on your own network and your users use daily, which makes it the path that breaks without anyone on the team noticing.
 
-## What relay traffic costs you
+## Relay Traffic
 
-Relay traffic crosses the TURN node twice, in and out, so it costs bandwidth twice. Relayed calls also come from your worst-network users, and once volume grows, the TURN node's egress and its placement both matter.
+Relay traffic crosses the TURN node twice, in and out, so size for both ingress and egress; billing depends on the provider and network path. Relayed calls also come from your worst-network users, and once volume grows, the TURN node's egress and its placement both matter.
 
-Instrument what fraction of connections relay. The selected ICE candidate pair in WebRTC stats reports a candidate type of `relay` when a session goes through TURN. A rising relay share is an early signal of a network-quality shift in your caller population. Nothing else will surface it.
+Instrument what fraction of connections relay. The selected ICE candidate pair in WebRTC stats reports a candidate type of `relay` when a session goes through TURN. A rising relay share is an early signal of a network-quality shift in your caller population. Investigate the client networks and selected candidate pairs when that share changes.
 
 Next: [the agent worker lifecycle](/learn/100x/livekit/livekit-agent-worker-lifecycle), where the stack you just built starts running your code, and where a job can end without ever saying so.
+
+<Checkpoint
+  question="Does TURN over TLS on port 443 guarantee every firewall permits the call?"
+  answer="No. Some networks inspect protocols or restrict destinations. Force relay in a test client and verify media on the networks you need to support."
+/>

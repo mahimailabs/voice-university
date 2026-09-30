@@ -1,0 +1,59 @@
+---
+lessonId: stt-lesson-003
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 3
+unit: 1
+unitTitle: "Audio Foundations"
+title: "Telephone Channels"
+navTitle: "Telephone Channels"
+summary: "Separate sample-rate conversion from channel simulation, and avoid claiming effects the source audio cannot show."
+seoTitle: "Telephone Channels for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+The source recordings are already 8 kHz. They cannot demonstrate which high-frequency information was lost during an earlier conversion from wideband audio. Upsampling them produces more samples, not new acoustic evidence.
+
+## Controlled Changes
+
+Use our narrowband examples to study added distortion, noise and level changes. Use a separate wideband recording if your question is the effect of downsampling. Keep each transform separate before combining them.
+
+| Experiment | Keep fixed | Question |
+| --- | --- | --- |
+| Added noise | Original clip and decoder | Which digits change at the chosen SNR? |
+| Level change | Noise and transcript | Does preprocessing handle quiet audio? |
+| Codec round trip | Sample rate and framing | What does this codec implementation alter? |
+| Downsampling | A genuine wideband source | What changes after anti-alias filtering? |
+
+An 8 kHz WAV is not automatically a telephone call. A real path can add endpoint processing, packet loss, transcoding and competing speech. The [phone-channel walkthrough](/blog/building-a-phone-line-in-pytorch) develops a controlled approximation and its limits.
+
+## Noise Probe
+
+For a reproducible full-clip SNR probe:
+
+```python
+rng = np.random.default_rng(17)
+noise = rng.standard_normal(audio.shape).astype('float32')
+noise /= np.sqrt(np.mean(noise**2))
+signal_rms = np.sqrt(np.mean(audio**2))
+noisy = audio + noise * signal_rms * 10**(-10/20)
+```
+
+This requests 10 dB using RMS across the entire clip, including its silence. It does not describe speech-active SNR. Do not silently clip or renormalise the mixture: those operations change the experiment.
+
+## Compare Outputs
+
+Listen to the clean and transformed clip at a sensible playback volume. Decode both with the same checkpoint and retain both hypotheses. A worsening prediction is one observation, not a robustness curve.
+
+<Checkpoint question="The noisy clip sounds understandable to you. Must its transcript stay correct?" answer="No. Human listening and this model use different evidence. Score the actual outputs and inspect several clips before drawing a general conclusion." />
+
+[Channel Robustness](/learn/100x/stt/channel-robustness) extends this into a paired evaluation. First, [inspect the dataset](/learn/100x/stt/dataset-inspection) so its conditions are explicit.

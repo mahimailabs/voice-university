@@ -1,0 +1,55 @@
+---
+lessonId: stt-lesson-021
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 21
+unit: 6
+unitTitle: "Model Improvements"
+title: "Vocabulary Biasing"
+navTitle: "Vocabulary Biasing"
+summary: "Explore domain priors without pretending that a preferred identifier is acoustic evidence."
+seoTitle: "Vocabulary Biasing for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+Suppose only a small set of part identifiers is valid today. That knowledge can influence decoding, but it can also push the recognizer toward a valid identifier the caller never said. A prior changes the decision; it does not verify the audio.
+
+## Separate Scores
+
+An illustrative candidate score combines acoustic log probability with a weighted domain prior. Keep both terms visible so the reason for a changed output can be inspected.
+
+```python
+combined_score = acoustic_log_probability + weight * domain_log_prior
+```
+
+This is an experiment design, not an implemented contextual-biasing feature in our baseline. The current lab decoder uses acoustic scores only. Do not present this formula as a drop-in equivalent to a vendor's phrase-hint API.
+
+## Negative Examples
+
+Build a validation slice containing both valid identifiers and similar-sounding alternatives. Include out-of-list speech. If every reference is on the preferred list, the evaluation cannot expose the cost of forcing unrelated audio onto that list.
+
+| Condition | Inspect |
+| --- | --- |
+| Correct identifier in list | Recovery of the full string |
+| Similar identifier absent | False replacement with a listed value |
+| No matching identifier | Rejection or clarification policy |
+| List changes | Configuration and model-version traceability |
+
+[Google's adaptation documentation](https://docs.cloud.google.com/speech-to-text/docs/v1/adaptation) describes recognition biasing and its false-positive tradeoff. The exact controls depend on the deployed recognizer.
+
+## Keep Evidence
+
+Store the raw hypothesis, biased candidate and list revision. A business lookup should not quietly rewrite the transcript and erase the uncertainty. Review [Entity Accuracy](/learn/100x/stt/entity-accuracy) for the distinction between valid form and correct identity.
+
+<Checkpoint question="A vocabulary list raises exact match on known products. What else must we measure?" answer="False matches on unknown and confusable inputs, plus the handling of ambiguous cases. A gain on positive examples alone can hide a dangerous bias." />
+
+The next lesson, [Pretrained Encoders](/learn/100x/stt/pretrained-encoders), changes the acoustic starting point. Keep that experiment separate from decoder priors so improvements remain attributable.

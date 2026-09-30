@@ -1,0 +1,55 @@
+---
+lessonId: stt-lesson-017
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 17
+unit: 5
+unitTitle: "Recognition Evaluation"
+title: "Entity Accuracy"
+navTitle: "Entity Accuracy"
+summary: "Score complete digit strings so a low average edit rate cannot hide unusable identifiers."
+seoTitle: "Entity Accuracy for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+For an identifier, one wrong digit can invalidate the whole result. Exact match asks whether the entire predicted string equals its reference. It complements edit rate rather than replacing it.
+
+## Two Metrics
+
+The retained model matched 62 of 120 evaluation sequences exactly, or about 51.7%. Its digit error rate was about 27.0%. These values describe different units: whole sequences and individual reference digits.
+
+| Reference | Hypothesis | Exact match | Digit edits |
+| --- | --- | --- | ---: |
+| `007` | `07` | No | 1 |
+| `77` | `7` | No | 1 |
+| `42` | `42` | Yes | 0 |
+
+This table is a constructed example. The measured predictions are available in [Error Inspection](/learn/100x/stt/error-inspection) and the lab's `results.json`.
+
+## Slice Results
+
+```python
+for length in (1, 2, 3):
+    group = [r for r in predictions if len(r['reference']) == length]
+    correct = sum(r['reference'] == r['hypothesis'] for r in group)
+    print(length, correct, len(group))
+```
+
+Include the group size. A longer string has more opportunities to fail, and a small slice can move sharply after one example. Also inspect leading zeros and adjacent repeats; these are useful stress cases for this vocabulary and decoder.
+
+## Action Boundary
+
+A format check can reject an impossible identifier, but it cannot establish that a valid identifier is the one the caller intended. Recognition, domain validation and confirmation are separate sources of evidence.
+
+<Checkpoint question="The output has three digits, just like the reference format. Should it count as correct?" answer="Only if the actual three digits match under the declared policy. Shape is a useful validation condition, not a recognition metric." />
+
+Carry both edit counts and exact matches into [Channel Robustness](/learn/100x/stt/channel-robustness). For production context, compare the [STT guide's entity discussion](/learn/components/speech-to-text#entity-accuracy); this tiny course model is not a safe identifier capture system.

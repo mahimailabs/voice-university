@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="872" height="186" viewBox="0 0 872 186" font-family="'DejaVu Sans Mono', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace" font-size="14px">
+  <defs>
+    <marker id="arrow-55555c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55555c"/>
+    </marker>
+    <marker id="arrow-55555c-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55555c"/>
+    </marker>
+    <marker id="arrow-6f3fb0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f3fb0"/>
+    </marker>
+    <marker id="arrow-6f3fb0-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f3fb0"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="872" height="186" fill="#fcfcfc"/>
+  <path d="M48 67 H193 L209 83 V111 a8 8 0 0 1 -8 8 H48 a8 8 0 0 1 -8 -8 V75 a8 8 0 0 1 8 -8 Z" fill="#fcfcfc" stroke="#95959d"/>
+  <path d="M193 67 V83 H209" fill="none" stroke="#95959d"/>
+  <g font-size="18px">
+  <text x="124.5" y="99.3" fill="#0a0a0a" text-anchor="middle">Prepared text</text>
+  </g>
+  <g transform="translate(327.5 52) scale(2)">
+    <path d="M12 2.6 L20.4 6.800000000000001 L12 11 L3.5999999999999996 6.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M3.5999999999999996 6.800000000000001 L12 11 L12 19.400000000000002 L3.5999999999999996 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M20.4 6.800000000000001 L12 11 L12 19.400000000000002 L20.4 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="18px">
+  <text x="351.5" y="128.3" fill="#0a0a0a" text-anchor="middle">Speech synthesis</text>
+  </g>
+  <g transform="translate(567.5 40) scale(2)">
+    <path d="M6.6 2.6 L11 4.800000000000001 L6.6 7 L2.1999999999999993 4.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M2.1999999999999993 4.800000000000001 L6.6 7 L6.6 11.4 L2.1999999999999993 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M11 4.800000000000001 L6.6 7 L6.6 11.4 L11 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M17.4 2.6 L21.799999999999997 4.800000000000001 L17.4 7 L12.999999999999998 4.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M12.999999999999998 4.800000000000001 L17.4 7 L17.4 11.4 L12.999999999999998 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M21.799999999999997 4.800000000000001 L17.4 7 L17.4 11.4 L21.799999999999997 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M12 11.6 L16.4 13.8 L12 16 L7.6 13.8 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M7.6 13.8 L12 16 L12 20.4 L7.6 18.2 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M16.4 13.8 L12 16 L12 20.4 L16.4 18.2 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="18px">
+  <text x="591.5" y="116.3" fill="#0a0a0a" text-anchor="middle">Output queue</text>
+  <text x="591.5" y="140.3" fill="#0a0a0a" text-anchor="middle">clear on interrupt</text>
+  </g>
+  <g transform="translate(764.5 40) scale(2)">
+    <path d="M4 3.6 h16 v11.4 h-16 Z" fill="#fcfcfc" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M2.2 16 h19.6 l1.6 2.6 a0.7 0.7 0 0 1 -0.6 1.1 h-21.6 a0.7 0.7 0 0 1 -0.6 -1.1 Z" fill="#57606a"/>
+    <path d="M9.6 17.2 h4.8 v1 h-4.8 Z" fill="#d6d9e6"/>
+  </g>
+  <g font-size="18px">
+  <text x="788.5" y="116.3" fill="#0a0a0a" text-anchor="middle">Receiver</text>
+  <text x="788.5" y="140.3" fill="#0a0a0a" text-anchor="middle">playback</text>
+  </g>
+  <line x1="209" y1="93" x2="265" y2="93" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <line x1="438" y1="93" x2="494" y2="93" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <line x1="689" y1="93" x2="745" y2="93" stroke="#6f3fb0" stroke-width="1.6" marker-end="url(#arrow-6f3fb0)"/>
+</svg>

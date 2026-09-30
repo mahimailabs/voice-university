@@ -1,0 +1,12 @@
+diagram theme: light background: #fcfcfc text: (color: #0a0a0a)
+default node text: (size: 18) fill: #fcfcfc border: #95959d
+default edge line: #55555c line: (path: curved)
+style dim text: (color: #55555c)
+
+node model "Language model" icon: cube 
+node call "Proposed tool / + arguments" shape: document below model
+node guard "Application / validation" icon: cubes below call
+node tool "Business system" icon: desktop below guard
+edge model -> call
+edge call -> guard
+edge guard -> tool line: #6f3fb0

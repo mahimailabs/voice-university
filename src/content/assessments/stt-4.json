@@ -1,0 +1,43 @@
+{
+  "course": "stt",
+  "unit": 4,
+  "version": "1",
+  "questions": [
+    {
+      "id": "stt-4-1",
+      "prompt": "Which split should choose the checkpoint?",
+      "options": [
+        "Final test",
+        "Whichever gives the lowest reported error",
+        "Validation"
+      ],
+      "correct": 2,
+      "explanation": "Use validation for model selection and reserve the test set for the final estimate.",
+      "lesson": "/learn/100x/stt/checkpoint-selection"
+    },
+    {
+      "id": "stt-4-2",
+      "prompt": "Training loss falls while validation loss rises. What is the useful next step?",
+      "options": [
+        "Train indefinitely",
+        "Inspect overfitting and compare earlier checkpoints",
+        "Report only training loss"
+      ],
+      "correct": 1,
+      "explanation": "Diverging curves suggest that better training fit is not improving held-out behaviour.",
+      "lesson": "/learn/100x/stt/learning-curves"
+    },
+    {
+      "id": "stt-4-3",
+      "prompt": "Most decoded outputs are empty. What should you inspect first?",
+      "options": [
+        "Blank predictions, sequence lengths and targets",
+        "Only the aggregate test score",
+        "Only the parameter count"
+      ],
+      "correct": 0,
+      "explanation": "Empty CTC outputs can hide alignment, target or optimization problems. Inspect frame predictions and valid lengths before changing model size.",
+      "lesson": "/learn/100x/stt/error-inspection"
+    }
+  ]
+}

@@ -1,11 +1,12 @@
 ---
+lessonId: livekit-lesson-023
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 23
 unit: 6
-unitTitle: 'Operating in production'
-title: 'Silent failures in voice agents: the call that carried nothing back'
-navTitle: 'Silent failures'
+unitTitle: 'Production Operations'
+title: 'Media Validation'
+navTitle: 'Media Validation'
 summary: 'Six thousand calls, zero errors, and a share of them carried audio one way. Why a 99.8% fleet RTP ratio hid it, and the per-call counts that catch it every time.'
 seoTitle: 'Silent Failures in Voice Agents: Detecting One-Way Audio | Mahimai'
 keywords:
@@ -22,8 +23,10 @@ faq:
   - q: 'Which per-call media metrics catch one-way audio?'
     a: 'RTP packets sent and received per call, the count of calls with zero inbound packets, per-call jitter peak and cumulative loss, and jitter buffer drops on the server side. The zero-inbound count is the one that turns into a pass or fail gate.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 
@@ -33,7 +36,9 @@ It was not fine. A share of those calls connected, held for their full five minu
 
 This lesson is about why nothing caught it, what to count instead, and the short list of voice failures that behave the same way. If you run load tests or on-call for a voice fleet, you'll leave with a gate you can add to your report today.
 
-## Why a 99.8% RTP ratio proved nothing
+The numbers below are saved case-study results. The original raw run bundle is not included here, and this review did not rerun the fleet experiment.
+
+## Aggregate Blind Spots
 
 An aggregate media ratio cannot tell "every call slightly lossy" apart from "most calls perfect, a few completely dead." Both produce a number near 1.0 when the dead share is small.
 
@@ -41,16 +46,16 @@ Our report had a media section, and it said the fleet received 99.8% as many RTP
 
 Here is why it is not. Take 6,000 calls with equal traffic in each direction and, purely for illustration, two ways to lose 0.2% of packets:
 
-| Scenario                                        | Fleet ratio | What callers heard      |
-| ----------------------------------------------- | ----------- | ----------------------- |
-| Every call loses 0.2% of its packets            | ~99.8%      | Fine, on every call     |
-| 24 calls get nothing back; the rest are perfect | ~99.8%      | Dead air on those calls |
+| Scenario                                        | Fleet ratio | What callers heard                       |
+| ----------------------------------------------- | ----------- | ---------------------------------------- |
+| Every call loses 0.2% of its packets            | ~99.8%      | Small loss; quality still needs checking |
+| 12 calls get nothing back; the rest are perfect | ~99.8%      | Dead air on those calls                  |
 
 Same ratio. Opposite verdicts. The arithmetic that hides the failure is the same arithmetic that reassures you, and the bigger the fleet, the more dead calls fit under a comforting 99.8%.
 
-## What to count instead: per-call media metrics
+## Per-Call Signals
 
-Count per call, never as a fleet aggregate. The per-call view makes one-way audio visible as a number you can gate on.
+Keep per-call measurements alongside fleet aggregates. The per-call view makes one-way audio visible as a number you can gate on.
 
 These are the counters we switched to:
 
@@ -59,7 +64,7 @@ These are the counters we switched to:
 | RTP packets sent and received, per call   | Direction imbalance on a single call        |
 | Calls with zero inbound packets           | One-way audio, as a count                   |
 | Jitter peak and cumulative loss, per call | Degraded calls hiding inside a good average |
-| Jitter buffer drops, server side          | Audio that arrived but was never played     |
+| Receiver jitter-buffer drops              | Audio that arrived but was never played     |
 
 If your harness uses WebRTC clients, most of this is already exposed per stream as `packetsReceived`, `packetsLost` and `jitter` in the [WebRTC statistics API](https://www.w3.org/TR/webrtc-stats/), with jitter and cumulative loss defined the same way RTP receiver reports define them in [RFC 3550](https://www.rfc-editor.org/rfc/rfc3550). The job is keeping those numbers per call instead of summing them away.
 
@@ -70,29 +75,34 @@ dead = [c for c in calls if c["rtp_packets_in"] == 0]
 assert not dead, f"{len(dead)} calls carried no inbound audio"
 ```
 
-A run either has zero dead calls or it has a defect, with no middle reading to argue about. The [load-test reports lesson](/learn/100x/livekit/debugging-load-test-reports) covers how the rest of a report goes wrong in similar ways.
+For scripted calls expected to receive speech, zero inbound packets is a clear transport failure. Nonzero packets still need decoding and speech checks; comfort noise or silence is not a valid answer. The [load-test reports lesson](/learn/100x/livekit/debugging-load-test-reports) covers how the rest of a report goes wrong in similar ways.
 
-## Why voice fails without erroring
+## Transport and Speech
 
-A call with no audio is not an error anywhere. Signalling succeeds, the session is established, the timers are normal, and the only witness is a human hearing nothing.
+A call with no audio may produce no signalling error. Signalling succeeds, the session is established, the timers are normal, and the only witness is a human hearing nothing.
 
-Any metric that averages across a population can hide a bimodal failure inside it, and voice is unusually exposed because its worst failure mode produces no event at all. Nothing throws. Nothing retries. Nothing logs.
+Any metric that averages across a population can hide a bimodal failure inside it, and voice is unusually exposed because its worst failure mode produces no event at all. Signalling-only telemetry can miss it. Media and application-level checks must supply the missing evidence.
 
 <Pull>
   If your system has a failure mode with no error, aggregate metrics will not find it. Count the
   instances instead.
 </Pull>
 
-## Five voice failures that never raise an error
+## Failure Checklist
 
 Each of these was found the same way: count what should exist per call or per job, and notice when it does not.
 
 1. **One-way audio from NAT.** The server replies to the address and port in the caller's SDP, and NAT has already rewritten both. See [one-way audio and NAT](/learn/100x/livekit/livekit-one-way-audio-nat).
-2. **Ports exhausted past the configured range.** Calls connect and carry nothing once the SFU needs more ports than the range holds. See [port exhaustion before CPU](/learn/100x/livekit/livekit-port-exhaustion).
-3. **A firewall dropping unpermitted media.** Packets on a port the firewall does not allow die before they reach the machine, and nothing records the drop.
+2. **Media allocation failure.** A connected signalling session can still lack a working media path. Verify the allocator and selected candidates rather than inferring exhaustion from a socket total. See [port exhaustion before CPU](/learn/100x/livekit/livekit-port-exhaustion).
+3. **A firewall dropping unpermitted media.** Packets on a port the firewall does not allow die before they reach the machine, and application logs may miss the drop.
 4. **Workers leaking jobs.** A job that never reports completion stays resident on the agent host and leaks on the media server too. See [the agent shutdown leak](/learn/100x/livekit/livekit-agent-shutdown-leak).
 5. **A load threshold quietly stopping dispatch.** The worker stays registered and connected but receives no new jobs. See [the worker load threshold](/learn/100x/livekit/livekit-worker-load-threshold).
 
-Five failure modes, zero error messages. Put a per-call or per-job count behind each one before your next load test.
+These failure modes can escape signalling-only alerts. Put a per-call or per-job count behind each one before your next load test.
 
 Next: the same counting discipline decides whether you can [deploy a voice fleet without dropping calls](/learn/100x/livekit/voice-zero-downtime-deploys).
+
+<Checkpoint
+  question="In 6,000 equal-volume calls, how many dead receive paths yield a 99.8% receive/send ratio?"
+  answer="Twelve, if each dead call receives zero and all other receive paths match the sent volume. The denominator and direction must be defined before using that arithmetic."
+/>

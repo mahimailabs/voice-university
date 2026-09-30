@@ -1,0 +1,50 @@
+---
+lessonId: stt-lesson-023
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 23
+unit: 6
+unitTitle: "Model Improvements"
+title: "Domain Adaptation"
+navTitle: "Domain Adaptation"
+summary: "Design a small, auditable adaptation experiment with a held-out domain slice and a regression set."
+seoTitle: "Domain Adaptation for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+Fine-tuning is justified by a measured failure you expect the new data to address. A new model run is not a substitute for fixing a wrong sample rate, broken decoder or destructive transcript policy.
+
+## Failure Hypothesis
+
+Choose one failure family: an accent, channel, domain vocabulary or speaking style. Retain examples that support the hypothesis and a broader regression set. A narrowly improved score can coexist with worse recognition elsewhere.
+
+For the digit lab, a reasonable exercise is noise augmentation during training. Keep the existing clean and noisy development probes fixed, apply augmentation only to training audio and save the transform configuration. That is a future comparison; the recorded baseline used no such augmentation.
+
+## Experimental Record
+
+```text
+hypothesis: training noise improves the declared noisy slice
+fixed: speakers, targets, evaluation clips, scoring policy
+changed: training-only noise transform
+report: clean and noisy edits, exact matches, runtime
+stop: select checkpoint using a declared validation rule
+```
+
+Do not add evaluation-speaker clips to training and continue to describe that speaker as held out. If the data boundary changes, version the manifest and state the new question.
+
+## Broader Speech
+
+For a pretrained general recognizer, follow its supported adaptation interface, retain an unadapted baseline and verify the input processor. The [ASR tutorial](https://huggingface.co/docs/transformers/tasks/asr) provides one concrete workflow; it is not evidence that every model supports the same adapters or loss.
+
+<Checkpoint question="Can we choose augmentation strength using the final test score?" answer="That turns the test into development data. Tune on validation, record the choice and evaluate once on a separately locked set when making a final claim." />
+
+Your deliverable is an experiment specification with acceptance and regression criteria. Use [Channel Robustness](/learn/100x/stt/channel-robustness) for the paired measurements, then [Causal Context](/learn/100x/stt/causal-context) to examine what must change before this offline pipeline can become truly incremental.

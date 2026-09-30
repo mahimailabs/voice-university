@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-007
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 7
 unit: 2
-unitTitle: 'The dataset'
-title: 'TTS data manifest: one line per utterance, and a clean train/val split'
-navTitle: 'The data manifest'
+unitTitle: 'Training Data'
+title: 'Data Manifests'
+navTitle: 'Data Manifests'
 summary: 'Our whole training set is 413 records and 0.74 hours of audio, with 45 more held out. What a TTS manifest stores, the NeMo shape, and the fields our model needed.'
 seoTitle: 'TTS Data Manifest and Train/Val Split | Mahimai'
 keywords:
@@ -23,16 +24,16 @@ faq:
   - q: 'Does a TTS manifest need durations?'
     a: 'Only for models that learn durations from an external aligner, such as FastSpeech-style models. Ours does, so each record stores one duration in mel frames per input symbol, and those durations sum exactly to the clip mel length. Models that learn alignment internally only need audio and text.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Practice from '../../../components/course/Practice.astro';
 
-Our entire training set is 413 records, 0.74 hours of audio. Another 45 records sit in a separate file that the model never trains on. Everything the training loop knows about the data, it reads from those two files.
+The training loop needs a list of clips it can trust. Our manifest records the text, mel length and alignment durations for each clip, then separates 413 training records from 45 validation records.
 
-That file is the manifest. By the end of this page you will know what a TTS manifest has to hold, the shape NVIDIA NeMo expects, how ours differs and why, and how to split it so your validation numbers mean something.
-
-## What is a TTS data manifest?
+## Manifest Format
 
 A TTS data manifest is a file with one record per utterance: where the audio is, what was said, and how long it lasts. The training code reads the manifest instead of walking a folder, so the manifest is where filtering, splitting and provenance get decided.
 
@@ -50,7 +51,7 @@ NeMo's [TTS dataset docs](https://docs.nvidia.com/nemo-framework/user-guide/late
 
 `audio_filepath`, `text`, `speaker` and `duration` are required; `normalized_text` is optional and lets you skip the toolkit's own text normalisation. The docs require each entry to sit on one line. One line per utterance means you can count, grep, shuffle, filter and diff the dataset with ordinary tools.
 
-## What does our manifest store?
+## Training Records
 
 Our manifest stores what a duration-based model needs: the clip id, the exact symbol string, one duration per symbol, the mel length, and the alignment scores that decided whether the clip was kept. It is not a NeMo manifest, and it does not need to be; our training code is the only reader.
 
@@ -79,14 +80,14 @@ Each field has a job:
 
 There is no `speaker` field because there is one speaker, and no raw `text` because the model never reads it.
 
-## How we built it: filter, check, split
+## Data Preparation
 
 We built the manifest in one pass of `train.py prep`: read the aligner's output, filter, compute and verify each mel, then shuffle and split. The key lines:
 
 ```python
 # train.py prep
 kept = [r for r in ok if r["score_mean"] >= min_score]
-kept = [r for r in kept if max(r["durations"]) <= 120]  # one symbol held > 1.4 s is a broken alignment
+kept = [r for r in kept if max(r["durations"]) <= 120]  # heuristic: inspect unusually long symbol spans
 for r in kept:
     m = mel(torch.from_numpy(audio))
     assert m.shape[1] == r["n_mel"], (r["id"], m.shape, r["n_mel"])
@@ -104,13 +105,13 @@ Three decisions sit in those lines.
 
 **Splitting.** Of the 571 clips we aligned, 458 passed the filters. A fixed seed shuffles them, then 10% (45) go to validation and the remaining 413 to training. Prep also writes a small `prep.json` with the funnel counts, the train and validation sizes, the training hours (0.74) and the mean and standard deviation of the training mels, which the model uses to normalise its targets.
 
-## What makes a validation split trustworthy?
+## Validation Splits
 
-A validation split is trustworthy when no clip in it influenced training, and when it is chosen by a rule you can rerun. Ours is fixed by `Random(0)`, so any rerun of prep on the same alignment output produces the same 45 clips.
+Validation clips must be excluded from gradient updates and training-statistic fitting. They still influence checkpoint choice, so they are development data, not an untouched final test. Ours is fixed by `Random(0)`, so any rerun on the same ordered alignment output produces the same 45 clips. Save the clip IDs too; a seed alone cannot freeze an input list that changes order.
 
 We measured validation mel L1 on those 45 clips at every checkpoint, and it is what showed the model flattening after about 1,650 steps. That curve is in [training the model from scratch](/learn/100x/tts/train-tts-model-from-scratch).
 
-Two further guards are worth copying. First, the sentences we listen to at each checkpoint ("please call me back when you have a moment" and two others) are not in LJSpeech at all, so neither the training nor the validation set can leak into them. Second, LJSpeech ids run in reading order, so clips with neighbouring ids come from the same stretch of the same book, and a random split puts neighbouring clips on both sides. For a single-speaker teaching model that is acceptable. If you are comparing models on unseen vocabulary, split by contiguous blocks of ids instead.
+Two further guards are worth copying. First, the sentences we listen to at each checkpoint ("please call me back when you have a moment" and two others) are not in LJSpeech at all, so they do not duplicate those transcripts. Repeated inspection still makes them development probes. Second, LJSpeech ids run in reading order, so clips with neighbouring ids come from the same stretch of the same book, and a random split puts neighbouring clips on both sides. For a single-speaker teaching model that is acceptable. If you are comparing models on unseen vocabulary, split by contiguous blocks of ids instead.
 
 <Practice label="Round-trip your manifest">
   Before any training run, load every record, recompute what you can (the mel length from the audio,
@@ -118,5 +119,10 @@ Two further guards are worth copying. First, the sentences we listen to at each 
   records per split and add up the hours. If a number surprises you, find out why before you spend
   compute.
 </Practice>
+
+<Checkpoint
+  question="Can these 45 validation clips also be the final test set?"
+  answer="They help choose checkpoints, so they are development data. Reserve a separate untouched set for a final generalisation claim."
+/>
 
 Next: [forced alignment](/learn/100x/tts/forced-alignment-tts), where the durations come from, and the filter that dropped 113 of our 571 clips.

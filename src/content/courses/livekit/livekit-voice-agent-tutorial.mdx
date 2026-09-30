@@ -1,12 +1,13 @@
 ---
+lessonId: livekit-lesson-004
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 4
 unit: 1
-unitTitle: 'Foundations'
-title: 'LiveKit voice agent tutorial: run your first agent locally'
-navTitle: 'Your first voice agent'
-summary: 'One laptop, one dev server, a 20-line Python file, and an agent you can talk to. Every line maps to a production concept, and the same file ships to the fleet unchanged.'
+unitTitle: 'LiveKit Foundations'
+title: 'First Voice Agent'
+navTitle: 'First Voice Agent'
+summary: 'Run a Python agent in the terminal, then connect through a local LiveKit room. Check dispatch, audio tracks and interruptions before deploying.'
 seoTitle: 'LiveKit Voice Agent Tutorial: Run One Locally | Mahimai'
 keywords:
   - 'LiveKit voice agent tutorial'
@@ -16,20 +17,22 @@ keywords:
 proficiency: 'Beginner'
 faq:
   - q: 'Can you run a LiveKit voice agent locally?'
-    a: 'Yes. Run livekit-server --dev in one terminal and your agent on the agents framework in another. The code you write locally is the same code that runs in production; only the infrastructure underneath changes.'
+    a: 'Yes. Run livekit-server --dev in one terminal and your agent on the agents framework in another. The framework is the same, but production needs additional lifecycle, security and observability work.'
   - q: 'What is the difference between console mode and dev mode in LiveKit Agents?'
     a: 'Console mode runs a single session in your terminal using your microphone and speakers, without connecting to a LiveKit server. Dev mode registers the agent with a real LiveKit server, reloads on code changes, and gets dispatched into rooms like a production worker.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 You have API keys for a speech-to-text provider, an LLM and a text-to-speech voice. You want to hear an agent answer you, today, on your own machine.
 
-That takes two processes and one Python file of about 20 lines. By the end of this page you will have talked to the agent twice (once in your terminal, once through a real LiveKit room), and you will know which production concept each line of the file stands for.
+Start in console mode to check the voice pipeline. Then use a local room to exercise the network and dispatch path.
 
-## What you need before you start
+## Local Requirements
 
-Three things, all free to set up:
+You need Python, the local server and provider credentials. Provider calls may be billed:
 
 - **Python 3.10 or newer** and the [uv](https://docs.astral.sh/uv/) package manager, which LiveKit's own quickstart uses.
 - **The LiveKit server and CLI** on your machine. Step 1 installs both.
@@ -37,7 +40,7 @@ Three things, all free to set up:
 
 The local server here is self-hosted, so the agent calls providers through plugins with your own keys (LiveKit Cloud's built-in model access is not available against a local server).
 
-## Step by step: run a LiveKit voice agent locally
+## Agent Setup
 
 ### 1. Install the server and the CLI
 
@@ -86,7 +89,7 @@ OPENAI_API_KEY=your-key
 CARTESIA_API_KEY=your-key
 ```
 
-The first three point the agent at your dev server, and when you move to [LiveKit Cloud or your own EC2 fleet](/learn/100x/livekit/livekit-cloud-vs-self-hosted), these three values are the only thing that changes.
+The first three point the agent at your dev server, and when you move to [LiveKit Cloud or your own EC2 fleet](/learn/100x/livekit/livekit-cloud-vs-self-hosted), these credentials change. Cloud-only integrations and production controls need a separate review.
 
 ### 5. Write `agent.py`
 
@@ -119,12 +122,12 @@ if __name__ == "__main__":
     agents.cli.run_app(server)
 ```
 
-The model names and the voice ID are the ones in LiveKit's plugin example, but you can use any model or voice your provider account offers.
+The provider choices are examples. Verify model and voice access in your accounts; keep `uv.lock` so the environment can be reproduced. This lesson has not been end-to-end tested against paid providers during the editorial review.
 
 ### 6. Talk to it in your terminal
 
 ```bash
-lk agent console
+uv run agent.py console
 ```
 
 Console mode runs one session through your microphone and speakers without touching the LiveKit server at all, which makes it the fastest loop you will get: edit, restart, speak. Press `Ctrl+T` to switch to typing if you are somewhere you cannot talk.
@@ -134,10 +137,10 @@ Console mode runs one session through your microphone and speakers without touch
 Now run it the way production does:
 
 ```bash
-lk agent dev
+uv run agent.py dev
 ```
 
-(`uv run agent.py dev` does the same thing without the CLI wrapper.) The agent registers with your dev server and waits, reloading whenever you save the file.
+The agent registers with your dev server and waits, reloading whenever you save the file.
 
 Create a token for yourself, then join a room from the browser:
 
@@ -148,7 +151,7 @@ lk token create --api-key devkey --api-secret secret \
 
 Open [example.livekit.io](https://example.livekit.io), enter `ws://localhost:7880` and the token, and connect. The room is created when you join, the server dispatches a job, and the agent joins a moment later. Say hello.
 
-## What each line of the agent does
+## Pipeline Components
 
 Every line in that file is a production concept in miniature. Here is the mapping.
 
@@ -160,7 +163,7 @@ Every line in that file is a production concept in miniature. Here is the mappin
 
 The round trip you hear, from the end of your sentence to the first syllable of the reply, is your [latency budget](/tools/latency-calculator). On a laptop it is whatever it is. In production you defend it.
 
-## Five minutes of trying to break it
+## Conversation Checks
 
 Once it answers, stop being polite. Do these four things, in order:
 
@@ -171,8 +174,13 @@ Once it answers, stop being polite. Do these four things, in order:
 
 Five minutes of adversarial poking teaches you more about turn detection and interruption handling than an afternoon of reading. It also calibrates the production behaviour you are aiming for, so you notice when a later change makes it worse.
 
-## What changes when you deploy it
+## Production Changes
 
-Nothing in this file. Everything you deploy in [unit 2](/learn/100x/livekit#unit-2) runs this exact code, unchanged. That is the framework's design: the gap between the laptop demo and the production fleet is entirely in the infrastructure underneath. Your dev server is one process on loopback. Production is an SFU with a public IP, a UDP port range sized as a capacity decision, TURN, Redis and a SIP service.
+The entrypoint remains useful, but a production agent also needs authentication, explicit dispatch, shutdown handling, telemetry and failure recovery. [Unit 2](/learn/100x/livekit#unit-2) builds the surrounding stack. Your dev server is one process on loopback. Production is an SFU with a public IP, a UDP port range sized as a capacity decision, TURN, Redis and a SIP service.
 
 Next: [deploy the LiveKit server on AWS EC2](/learn/100x/livekit/self-host-livekit-aws), starting with the one port rule that decides whether media flows at all.
+
+<Checkpoint
+  question="Why can console mode work while a browser call fails?"
+  answer="Console mode bypasses LiveKit rooms and the network media path. Test dev mode through a room to exercise dispatch, tracks, ICE and subscriptions."
+/>

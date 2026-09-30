@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-009
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 9
 unit: 3
-unitTitle: 'The text front end'
-title: 'Text normalisation for TTS: numbers, codes and what a minimal normaliser gets wrong'
-navTitle: 'Text normalisation'
+unitTitle: 'Text Processing'
+title: 'Text Normalisation'
+navTitle: 'Text Normalisation'
 summary: '1,505 LJSpeech transcripts (11.5%) needed normalising, and our model drops digits silently. A nine-line normaliser cut its hard-set WER from 64.4% to 35.6%.'
 seoTitle: 'Text Normalisation for TTS: Numbers and Codes | Mahimai'
 keywords:
@@ -23,8 +24,10 @@ faq:
   - q: 'Why do TTS systems read phone numbers wrong?'
     a: 'Because a digit string has no single spoken form. "555 0192" is a phone number read digit by digit, but a naive normaliser treats each group as a quantity and says "five hundred and fifty five one hundred and ninety two". Account numbers lose leading zeros the same way. The fix is classifying the token before expanding it, which is what production normalisers do.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import AudioSample from '../../../components/course/AudioSample.astro';
 import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
@@ -32,9 +35,7 @@ import Practice from '../../../components/course/Practice.astro';
 
 In the raw LJSpeech metadata, 1,505 of 13,100 transcripts (11.5%) differ from their normalised version, and 1,489 of those contain digits; they are also where [forced alignment](/learn/100x/tts/forced-alignment-tts) struggled most. Our tiny model never sees a digit. Hand it "your order number is 48213" and Whisper hears "your order number is." The number does not come out garbled. It does not come out at all.
 
-On this page we add the stage that fixes most of that: a text normaliser. It is under ten lines, it roughly halves our model's error rate on sentences full of numbers, and it gets phone numbers, account numbers and times wrong in ways our own scorer cannot see. You will see all three.
-
-## What is text normalisation in TTS?
+## Spoken Forms
 
 Text normalisation rewrites written text into the words a person would say aloud, before the text reaches the model. "$129.50" becomes "one hundred and twenty nine dollars and fifty cents"; "Dr." becomes "doctor"; "14th" becomes "fourteenth".
 
@@ -47,7 +48,7 @@ It is the first stage of the text front end, ahead of the step that turns words 
   The text front end. Our model uses the character path; the normaliser sits in front of either one.
 </CourseFigure>
 
-## Why does our TTS model drop numbers silently?
+## Dropped Digits
 
 Because the tokenizer throws away every character outside its symbol set, and digits are outside it. Here is the tokenizer we trained with, from `common.py`:
 
@@ -76,9 +77,9 @@ Twenty-nine symbols: padding, space, apostrophe and a to z. "48213" produces no 
   The clip is 3.85 s.
 </AudioSample>
 
-Whisper's transcript shows Piper got the raw digits right, which suggests something in its pipeline expands numbers before synthesis. The transcript shows the result, not the mechanism, and we did not trace which component does it. Ours had no such stage until now.
+Whisper's transcript preserves the digit value, which suggests something in its pipeline expands numbers before synthesis. The transcript shows the result, not the mechanism, and we did not trace which component does it. Ours had no such stage until now.
 
-## How do you write a minimal text normaliser?
+## Number Expansion
 
 Chain a handful of regular expressions, each catching one kind of written form and expanding it with [num2words](https://github.com/savoirfairelinux/num2words), a Python library that converts numbers to words as cardinals, ordinals, years or currency. This is the core of the `normalise` function in our eval harness, the exact code we scored:
 
@@ -96,9 +97,9 @@ return t.replace("-", " ").lower()
 
 Order matters. Money runs before plain numbers, so "$129.50" is claimed by the dollar pattern before the digit patterns can split it. Times run before ordinals, ordinals before years, and the last line catches every digit run the earlier patterns missed. That last line is where most of the failures below come from.
 
-## Does text normalisation improve TTS word error rate?
+## Scoring Results
 
-Yes, on text that has numbers in it, and by nothing on text that does not. We ran the eval harness on a 4-core cloud container with no GPU: 45 held-out LJSpeech sentences (821 words, no digits) and a 16-sentence hard set (177 words) of order numbers, times, money, a phone number, years, a dose, "Dr.", ordinals, a spoken code, two uncommon names and one long agent-style sentence. Whisper base.en transcribed every clip, and we scored corpus-level word error rate. The tiny model rows are the step 1,650 checkpoint we kept.
+In this experiment it improved the reported hard-set score and left the digit-free validation score unchanged. The shared normaliser makes the hard-set improvement an imperfect measure of spoken correctness. We ran the eval harness on a 4-core cloud container with no GPU: 45 held-out LJSpeech sentences (821 words, no digits) and a 16-sentence hard set (177 words) of order numbers, times, money, a phone number, years, a dose, "Dr.", ordinals, a spoken code, two uncommon names and one long agent-style sentence. Whisper base.en transcribed every clip, and we scored corpus-level word error rate. The tiny model rows are the step 1,650 checkpoint we kept.
 
 | System                      | Held-out WER | Hard-set WER |
 | --------------------------- | ------------ | ------------ |
@@ -106,7 +107,7 @@ Yes, on text that has numbers in it, and by nothing on text that does not. We ra
 | Tiny model + our normaliser | 19.7%        | 35.6%        |
 | Piper en_US-ljspeech-medium | 4.0%         | 8.5%         |
 
-The normaliser roughly halves the tiny model's hard-set errors and leaves held-out untouched, because there was nothing there to normalise. For scale, Whisper gets 1.7% of the held-out words wrong on the real LJSpeech recordings, so that much of every held-out number is the transcriber.
+The normaliser roughly halves the tiny model's hard-set errors and leaves held-out untouched, because there was nothing there to normalise. For scale, Whisper gets 1.7% of the held-out words wrong on the real LJSpeech recordings, but that is a control measurement, not an error share we can subtract from synthetic-audio WER.
 
 Three caveats sit on the hard-set column, and they go wherever that column goes:
 
@@ -116,7 +117,7 @@ Three caveats sit on the hard-set column, and they go wherever that column goes:
 
 The [eval harness lesson](/learn/100x/tts/tts-eval-harness) covers the full test set and the other checkpoints.
 
-## Where does a minimal text normaliser fail?
+## Contextual Errors
 
 It fails wherever a digit string has more than one spoken form and the regex picks the wrong one. The hard set shows three kinds.
 
@@ -134,5 +135,10 @@ All three have the same cause: the normaliser expands a token without first deci
   against that, never against your normaliser's output. The phone numbers and leading zeros will
   fail first.
 </Practice>
+
+<Checkpoint
+  question="Should an account number 0042 become forty-two?"
+  answer="Usually not. Preserve the identifier with an explicit spoken-form policy, such as zero zero four two, and author the expected result independently."
+/>
 
 Next: [grapheme to phoneme](/learn/100x/tts/grapheme-to-phoneme-g2p), the step after normalisation, and why our model skips it.

@@ -1,0 +1,59 @@
+---
+lessonId: stt-lesson-004
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 4
+unit: 2
+unitTitle: "Training Data"
+title: "Dataset Inspection"
+navTitle: "Dataset Inspection"
+summary: "Build a manifest that exposes recording identity, speaker, target and provenance before any split is made."
+seoTitle: "Dataset Inspection for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+A directory of WAV files is not yet a training dataset. The recognizer needs a target for each example, and the experiment needs enough identity information to explain where a result came from.
+
+## Source Inventory
+
+The lab pins an FSDD Git commit rather than following a moving branch. It parses filenames into digit, speaker and recording index, then checks sample rate, channel count and PCM type while loading. A failed assumption stops the run.
+
+```python
+from pathlib import Path
+from collections import Counter
+paths = sorted(Path('fsdd/recordings').glob('*.wav'))
+print(len(paths))
+print(Counter(p.stem.split('_')[1] for p in paths))
+```
+
+Compare that inventory with the [dataset documentation](https://github.com/Jakobovski/free-spoken-digit-dataset). Keep its licence and attribution with any redistributed recordings or derived audio. The downloadable lab includes an attribution notice; it is not a substitute for reviewing reuse requirements.
+
+## Sequence Construction
+
+`dataset()` chooses one speaker, then one to three digits. It selects a recording for each digit and joins the recordings with 800 zero-valued samples after each segment. At 8 kHz that is 100 milliseconds of added silence.
+
+This construction creates ordered targets without manually aligning character timestamps. It also creates an artificial rhythm. The recognizer may exploit the pauses, so performance cannot be transferred to naturally spoken identifiers.
+
+## Manifest Records
+
+Each saved record contains an ID, split, speaker, target string and ordered source filenames. Do not replace the list of source filenames with only the generated sequence ID: that would hide source reuse.
+
+```python
+import json
+rows = json.load(open('my-run/manifest.json'))
+print(rows[0])
+assert all(r['files'] and r['text'] for r in rows)
+```
+
+<Checkpoint question="Are 600 generated sequences necessarily 600 independent recordings?" answer="No. Source clips are sampled repeatedly. Sequences can share component recordings, which matters for uncertainty and splitting. The manifest lets you audit that reuse." />
+
+Your output is the inventory plus the manifest, not a model. Define the [Transcript Policy](/learn/100x/stt/transcript-policy), then make [Speaker Splits](/learn/100x/stt/speaker-splits) before augmentation or concatenation.

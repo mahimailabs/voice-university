@@ -1,11 +1,12 @@
 ---
+lessonId: livekit-lesson-012
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 12
 unit: 3
-unitTitle: 'Agent workers in production'
-title: 'LiveKit agent shutdown: returning from the entrypoint does not end the job'
-navTitle: 'Graceful shutdown and leaked jobs'
+unitTitle: 'Agent Workers'
+title: 'Job Shutdown'
+navTitle: 'Job Shutdown'
 summary: 'Seventy-five seconds after the caller hung up, the job process still held 439 MB. What the framework waits for, the one-line ctx.shutdown fix, and where it leaks.'
 seoTitle: 'LiveKit Agent Shutdown: Why Returning Is Not Enough | Mahimai'
 keywords:
@@ -16,14 +17,16 @@ keywords:
 proficiency: 'Intermediate'
 faq:
   - q: 'Why does my LiveKit agent job process stay alive after the call ends?'
-    a: 'The job process awaits a shutdown future that is resolved by connecting to the room, by an explicit shutdown call, or by the job crashing. Returning cleanly from the entrypoint resolves none of them, so a worker that never connects to the room waits forever.'
+    a: 'The job process awaits a shutdown future that is resolved when the room disconnects after connection, by explicit shutdown, or by framework termination. Returning cleanly from the entrypoint resolves none of them, so a worker that never connects to the room waits forever.'
   - q: 'How do I end a LiveKit agent job explicitly?'
     a: 'Call ctx.shutdown(reason="call ended") on the JobContext when your call logic is finished. It is one line, and it is what lets the job report completion so both the agent host and the media server release what they allocated for it.'
   - q: 'Where does a leaked agent job show up?'
     a: 'On two machines. The job process stays resident on the agent host, and the per-job handler the media server allocated at assignment is never released, because the job finished report is never sent.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
@@ -34,7 +37,9 @@ Then we watched the process list. Seventy-five seconds after the caller hung up,
 
 This page covers what the framework actually waits for before a job ends, the one-line fix, and why the leak you should worry about is on a machine you are probably not watching.
 
-## What the framework waits for before a job ends
+The numbers below are saved case-study results. The original raw run bundle is not included here, and this review did not rerun the fleet experiment.
+
+## Shutdown Conditions
 
 A job process does not exit when your entrypoint returns. It exits when a shutdown future resolves, and returning is not one of the things that resolves it.
 
@@ -44,23 +49,25 @@ We found this by reading the framework internals. The job process sits on one li
 shutdown_info = await self._shutdown_fut
 ```
 
-That future is resolved by connecting to the room, by an explicit shutdown call, or by the job crashing. Returning cleanly from the entrypoint resolves nothing.
+That future is resolved when the room disconnects after connection, by explicit shutdown, or by framework termination. Returning cleanly from the entrypoint resolves nothing.
 
 Our worker deliberately never connected. Another library owned the room connection, and connecting twice would have put a second participant in every call, so none of the resolution paths could fire. The process waited forever for a signal that was never going to arrive.
 
 If your agent uses the standard `AgentSession` path, it connects to the room for you, and you may never hit this. The trap is any design where something else owns the connection. The [job lifecycle docs](https://docs.livekit.io/agents/server/job/) describe the connected path and the shutdown hooks that run after it.
 
-## The one-line fix: ctx.shutdown
+## Explicit Shutdown
 
-Tell the framework the job is over. When your call logic finishes, call shutdown on the job context:
+For the custom connection lifecycle in this case, signal job completion when the call logic is actually finished:
 
 ```python
 ctx.shutdown(reason="call ended")
 ```
 
-That resolves the future, the job reports finished, and the process exits (the method is `JobContext.shutdown` in the [Python agents reference](https://docs.livekit.io/reference/python/livekit/agents/index.html)). Put it on every exit path of your call logic, including the error path, since a crash is the only other thing that will end the job for you.
+For a normal Python `AgentSession`, use `session.shutdown(drain=True)` to finish queued speech and close the session; see the [current session-ending guide](https://docs.livekit.io/agents/server/job/). Do not shut down immediately after `session.start`, which completes setup before the conversation ends.
 
-## Why the leak shows up on the media server
+In the custom case, explicit job shutdown resolves the future, the job reports finished, and the process exits (the method is `JobContext.shutdown` in the [Python agents reference](https://docs.livekit.io/reference/python/livekit/agents/index.html)). Put it on every exit path of your call logic, including the error path, while also accounting for framework-driven termination.
+
+## Cross-Host Resources
 
 The leaked resource was not only the process on the agent host: the media server allocates a per-job handler when it assigns work and releases it when the worker reports the job finished.
 
@@ -76,7 +83,7 @@ An agent that never reports completion leaks on the media server too: a differen
 
 This is the completion step of the [worker lifecycle](/learn/100x/livekit/livekit-agent-worker-lifecycle) failing. The server trusts what the worker reports, so a report that never arrives means a job that never ends, as far as the server knows. A different unreported counter stops dispatch altogether in the [next lesson](/learn/100x/livekit/livekit-worker-load-threshold).
 
-## How to catch it: watch the process table
+## Process Inspection
 
 Every metric we emitted said the call completed cleanly, and our own counters ran in a `finally` block that executed exactly as intended. The counters were correct. The process was still there.
 
@@ -88,14 +95,15 @@ Every metric we emitted said the call completed cleanly, and our own counters ra
 Here is the check we now run after a test call: list every descendant of the worker with its age and resident memory:
 
 ```bash
-root=<worker pid>
+root=12345  # replace with the worker PID
 descendants() { local p; for p in $(pgrep -P "$1"); do echo "$p"; descendants "$p"; done; }
-ps -o pid,etimes,rss,comm -p "$(descendants "$root" | paste -sd,)"
+pids=$(descendants "$root" | paste -sd,)
+if [ -n "$pids" ]; then ps -o pid,etimes,rss,comm -p "$pids"; fi
 ```
 
-`etimes` is seconds since the process started and `rss` is in KiB. The worker keeps a few idle, pre-warmed processes on purpose, so do not expect zero: expect the count to fall back to the idle count once calls end. A process that keeps ageing after its call hung up is a leaked job. For how much memory each of those processes really costs, read RSS with care: [PSS is the number to size from](/learn/100x/livekit/livekit-agent-memory-pss-rss).
+`etimes` is seconds since the process started and `rss` is in KiB. The worker keeps a few idle, pre-warmed processes on purpose, so do not expect zero: expect the count to fall back to the idle count once calls end. A process that remains attached to a completed job beyond the expected cleanup window needs investigation; a warm idle process is not itself a leak. For how much memory each of those processes really costs, read RSS with care: [PSS is the number to size from](/learn/100x/livekit/livekit-agent-memory-pss-rss).
 
-## Before you write "handled" in a commit message
+## Shutdown Exercise
 
 We wrote that the job was finalised correctly because the code looked like it should be. It was not. A test against real infrastructure found that out, and by then the claim was already in the history.
 
@@ -105,3 +113,8 @@ We wrote that the job was finalised correctly because the code looked like it sh
 4. Only then describe the lifecycle in the commit.
 
 A lifecycle claim needs something that observed the lifecycle, and the same habit, applied at fleet scale, is what [per-call resource accounting](/learn/100x/livekit/per-call-resource-accounting) formalises.
+
+<Checkpoint
+  question="Should ctx.shutdown run in a finally block immediately after session.start?"
+  answer="No. session.start can finish setup while the conversation continues. End the job when the conversation is actually finished, not when its setup coroutine returns."
+/>

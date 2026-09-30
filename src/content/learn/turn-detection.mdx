@@ -1,72 +1,79 @@
 ---
-title: What makes good turn detection in a voice agent
+title: Turn detection for voice agents
 label: Turn detection
 tag: TURN
-description: 'Turn detection is how a voice agent knows when it is its turn to talk. This guide covers why it is the hardest part to get right, and the small mistakes that make an agent feel rude or slow.'
+description: 'Separate speech activity, end-of-turn decisions and interruptions. Evaluate pauses, corrections and recovery with labelled conversations.'
 order: 4
-updatedDate: 2026-08-19
+updatedDate: 2026-09-30
+cover: ./images/turn-cover.webp
+coverAlt: A caller pauses to read a note while the other person listens.
+socialImage: ./images/turn-social.jpg
 related:
   - { label: 'Speech to text', href: '/learn/components/speech-to-text' }
   - { label: 'Latency calculator', href: '/tools/latency-calculator' }
   - { label: 'Production readiness review', href: '/services/production-readiness-review' }
 ---
 
-import Figure from '../../components/learn/Figure.astro';
-import TurnDial from '../../components/learn/figures/TurnDial.astro';
-import TurnNumberPause from '../../components/learn/figures/TurnNumberPause.astro';
+import LearnDiagram from '../../components/learn/LearnDiagram.astro';
+import Checkpoint from '../../components/learn/Checkpoint.astro';
 
-Two people on a call almost never talk over each other, and almost never leave a long silence between turns. They just know when the other person is done. It feels effortless, and it is the single hardest thing to teach a voice agent, the automated voice that answers the phone.
+“My order number is seven two…” The caller pauses to read the remaining digits. A silence timer expires and the agent starts answering before it has the whole identifier.
 
-Turn detection is the part that decides whose turn it is to talk: when the caller has finished, and when the agent should jump in. Get it slightly wrong and the agent feels either rude, cutting people off, or slow, leaving dead pauses. Almost no team adjusts it, and it quietly decides whether the whole thing feels human or exhausting.
+Turn handling has two decisions: **when to respond, and when to stop responding**. Evaluate them separately, then check that conversation state survives the transition.
 
-## Three jobs people mix up
+## Detection Layers
 
-People treat three different questions as if they were one, and mixing them up is behind most turn-taking bugs. They are not the same job.
+| Layer | What it establishes |
+| --- | --- |
+| Voice activity detection | Evidence of speech in the incoming audio |
+| Recognition | A transcript hypothesis, possibly still changing |
+| End-of-turn decision | Whether the application should allow a response |
+| Interruption policy | Whether incoming activity should stop agent playback |
 
-| The question                                | What it really means                                                                                             |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Is anyone speaking right now?               | Simply telling a voice from silence. The quickest, most basic check.                                             |
-| Should the agent start talking now?         | The real decision: has the caller actually finished their turn? This is the hard one.                            |
-| Do the words sound like a finished thought? | Reading the actual words and tone to judge whether the idea is complete, not just whether the person went quiet. |
+None of these signals alone proves the caller’s intention. [LiveKit’s turn-handling overview](https://docs.livekit.io/agents/logic/turns/) separates user turn completion from agent interruptions and describes the available detection modes.
 
-Telling a voice from silence only feeds the real decision. A system can be perfect at hearing whether someone is speaking and still cut people off constantly, because working out that they have finished is a separate judgment made on top of it.
+## Endpoint Decisions
 
-## There are two ways to get the timing wrong
+A silence threshold is a policy: after a specified gap, proceed. A shorter threshold can reduce waiting but may cut into pauses. A longer one can protect unfinished speech while delaying completed turns.
 
-Focus on that middle decision, and there are two ways to get it wrong. They pull in opposite directions.
+Semantic context and audio cues can help, but their reliability depends on language, transcription and the model. Measure the tradeoff on labelled examples. Do not assume a semantic detector knows that every number is incomplete, or that one human conversational average is a universal target.
 
-Cut in too early, and the agent talks over a caller who was not finished. This is the worse mistake, because it chops off the end of what they were saying, and callers quickly learn to rush so they will not be interrupted. Wait too long, and there is an awkward silence on every turn, and the caller starts wondering if anyone is there.
+<LearnDiagram name="turn" caption="Speech activity and context inform a turn decision. A pause is evidence, not a command to answer." />
 
-If all the system does is watch for silence, you cannot fix one of these without making the other worse. That is why "just make it respond faster" is the wrong instruction: with a silence timer, faster simply means cutting more people off. The way out is not to slide along that dial. It is to change what the system pays attention to, which is the next section.
+## Paused Entities
 
-<Figure label="the timing balance" filled>
-  <TurnDial />
-</Figure>
+Include utterances with pauses inside names, addresses, codes and corrections. Annotate where the speaker intended to hold the turn and where it actually ended.
 
-## The pause that ruins it: numbers and addresses
+| Constructed utterance | Desired behaviour |
+| --- | --- |
+| “The code is seven two… [pause] nine.” | Retain the partial code and wait through the labelled internal pause. |
+| “That’s everything.” | Permit a reply after the configured completion decision. |
+| “Tuesday… no, Thursday.” | Keep the correction attached to the request. |
 
-Here is where the silence-only approach falls apart. If the agent decides you are done the moment you go quiet for a beat, it cuts you off in the worst possible place: while you are reading out a card number, spelling an email, or giving an address. People pause in the middle of those. They say "my number is five one nine," pause to look, then "five five five..." A system watching only for silence hears that pause and jumps in.
+Task state helps: an application collecting a fixed-length identifier can notice that digits are missing. That is domain logic, not evidence that recognition itself was correct. Keep [entity validation](/learn/components/speech-to-text#entity-accuracy) as a separate step.
 
-> A silence timer cannot tell a finished sentence from someone pausing to read a card number. That is why one fixed setting always feels wrong somewhere on every call.
+## Interruption Policy
 
-The way out is a smarter component, usually called a turn detector, that reads the words as well, so it can tell that "my number is five one nine" is plainly not a finished thought, and wait. This is not quite free: reading the words means waiting a moment for the listening part to write them down, and the turn detector often has to judge from a half-finished sentence. But it moves the whole balance, letting the agent both respond quicker and cut people off less than a plain timer ever could. Test it on purpose: have people read out numbers, addresses, and spelled names with natural pauses, and watch whether the agent holds on or barges in. It almost always fails here first.
+“Mm-hmm” may acknowledge a reply; “No, Thursday” may correct it. Words, timing and context matter. A blanket rule to ignore short utterances can miss a meaningful “stop.”
 
-<Figure label="why a silence timer cuts people off" filled>
-  <TurnNumberPause />
-</Figure>
+Replay acknowledgements, corrections, background speakers and echo. Decide which cases should interrupt, then record false stops and missed interruptions. [LiveKit’s tuning reference](https://docs.livekit.io/agents/logic/turns/tuning/) documents distinct endpointing and interruption controls; change the setting tied to the observed failure.
 
-## Do not stop for "mm-hmm"
+<Checkpoint question="Should every 'yes' during agent speech be ignored as an acknowledgement?" answer="No. It might answer a question, confirm a choice or merely acknowledge. Label the intention in context and check the policy against that case. Duration or a keyword alone cannot decide it reliably." />
 
-When you listen to someone, you say little things: "yeah," "okay," "mm-hmm." You are not trying to take over. You are just showing you are still there. A good agent has to tell the difference between those little acknowledgements and a real interruption. If it treats every "yeah" as its cue to stop and hand over, it stutters to a halt every time the caller nods along, and the conversation never flows.
+## Recovery State
 
-## Interrupting is a whole little story, not a switch
+An accepted interruption should cancel obsolete generation, stop playback and clear queued audio where supported. Then update the conversation using what was actually spoken and the caller’s new input.
 
-When a caller does genuinely cut in, stopping is only the first half. The agent has to stop fast, yes, but then it has to remember where it was, work out what the caller actually wanted (a correction? a new question?), and carry on sensibly, without starting its sentence over from the top or repeating itself. An agent that stops when interrupted but then loses its place is more frustrating than one that never stopped, because now the caller has to explain the whole thing again. Handling an interruption well is a short sequence of steps, not a single on-off switch.
+If the interruption was false, resume only when the conversation still warrants the unfinished reply. Do not restart an entire answer mechanically. Track pending tool operations too: stopping speech does not undo a booking already submitted.
 
-## Aim for human timing, not zero
+## Evaluation Plan
 
-It is tempting to think the goal is to reply instantly. It is not. When people take turns, they leave a tiny gap, about a fifth of a second, and they can tell the end is coming before the silence even arrives, because your voice drops in pitch as you finish a sentence. An agent that fires back with no gap at all feels like being interrupted by an eager machine. The target is human timing, reached by seeing the end coming, not the fastest possible reaction.
+| Failure | Measurement |
+| --- | --- |
+| Premature response | Agent starts during a labelled within-turn pause |
+| Delayed response | Intended turn end to first audible reply |
+| False interruption | Playback stops for activity labelled non-interrupting |
+| Missed interruption | Caller correction begins but playback continues |
+| Broken recovery | Repeated, skipped or contradicted information after the stop |
 
-## The bottom line
-
-Turn detection is the part almost nobody adjusts and the part that decides, more than any other, whether talking to the agent feels natural or draining. The good news is that all of it is measurable: the cutting-off, the dead air, and the times it wrongly thinks the caller interrupted can all be tested under real conditions, which is exactly what we do in a [production readiness review](/services/production-readiness-review). If a coding agent is writing your turn logic, the free [voice-turn-taking skill](https://skills.mahimai.ca/skills/voice-turn-taking/) gives it the same defaults and the tests for the number-reading pause.
+Keep audio, transcripts, detector events and playback timestamps on a shared timeline. Report sample counts with each rate and inspect disagreements in the labels. The [WebRTC guide](/blog/how-your-voice-travels-through-webrtc) shows why receiver buffering can change the timing you observe.

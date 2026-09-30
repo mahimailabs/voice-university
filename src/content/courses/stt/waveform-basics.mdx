@@ -1,0 +1,65 @@
+---
+lessonId: stt-lesson-001
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 1
+unit: 1
+unitTitle: "Audio Foundations"
+title: "Waveform Basics"
+navTitle: "Waveform Basics"
+summary: "Read a real recording, check its sample rate, and establish exactly what this small recognizer will learn."
+seoTitle: "Waveform Basics for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+We will train a recognizer to return short digit strings from audio. Its weights start randomly; its vocabulary is deliberately restricted to `0` through `9`. It will not transcribe ordinary conversation.
+
+The lab uses recorded digits joined into synthetic sequences. This makes the alignment problem visible without pretending we have collected natural phone calls. Every lesson builds on the same downloadable experiment.
+
+## Run Setup
+
+[Download the lab](/labs/stt/stt-lab.zip), extract it, and open a terminal in its folder. Python, basic tensors and familiarity with a training loop are the prerequisites. The recorded run used Python 3.14 and PyTorch 2.14.1 on an ARM Mac CPU. Other supported platforms can have different timings and results.
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+git clone https://github.com/Jakobovski/free-spoken-digit-dataset.git fsdd
+git -C fsdd checkout 26eb9aaf76e81b692f806f9140c2d2777410d7a1
+python lab.py --data fsdd --out my-run --epochs 60
+```
+
+The ZIP includes source, logs and a checkpoint. Downloading and running it happens on your machine; the browser examples do not upload microphone audio or train a model.
+
+## Inspect Audio
+
+Run this after the dataset download:
+
+```python
+from scipy.io import wavfile
+rate, pcm = wavfile.read('fsdd/recordings/0_jackson_0.wav')
+assert pcm.ndim == 1 and str(pcm.dtype) == 'int16'
+audio = pcm.astype('float32') / 32768
+print(rate, len(audio) / rate, audio.min(), audio.max())
+```
+
+Dividing the sample count by the header rate gives duration. Changing the header without changing samples changes playback speed and pitch; it is not resampling. Keep the original file so every later transform can be reproduced.
+
+<AudioSample src="/audio/stt/example-0.wav" label="Held-out digit sequence">A sequence assembled from FSDD recordings, with a short silence between digits. Labels and source filenames are in the lab manifest.</AudioSample>
+
+## Course Boundary
+
+The [FSDD source](https://github.com/Jakobovski/free-spoken-digit-dataset) documents the recordings and their attribution/share-alike licence. Our split and sequence construction are custom, so our scores must not be presented as the dataset's standard benchmark.
+
+<Checkpoint question="Can a successful digit recognizer demonstrate general speech recognition?" answer="No. A small fixed vocabulary removes most language and vocabulary problems. It is useful for learning the training pipeline; a conversational claim requires a different corpus and evaluation." />
+
+Continue with [Speech Features](/learn/100x/stt/speech-features), then define your [Transcript Policy](/learn/100x/stt/transcript-policy) before training.

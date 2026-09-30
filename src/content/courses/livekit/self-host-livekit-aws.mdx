@@ -1,12 +1,13 @@
 ---
+lessonId: livekit-lesson-005
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 5
 unit: 2
-unitTitle: 'Self-hosting the stack'
-title: 'Deploy LiveKit server on AWS EC2: instances, security groups, port ranges'
-navTitle: 'Deploy LiveKit on AWS EC2'
-summary: 'A test client connects, the first real call carries no audio, and nothing logs an error. The EC2 setup for LiveKit, port by port, so livekit.yaml and the security group agree.'
+unitTitle: 'Self-Hosted Stack'
+title: 'AWS Deployment'
+navTitle: 'AWS Deployment'
+summary: 'A test client connects, the first real call carries no audio, and signalling logs may show no error. The EC2 setup for LiveKit, port by port, so livekit.yaml and the security group agree.'
 seoTitle: 'Deploy LiveKit on AWS EC2: Ports, Security Groups | Mahimai'
 keywords:
   - 'self-host LiveKit AWS'
@@ -18,14 +19,16 @@ keywords:
 proficiency: 'Intermediate'
 faq:
   - q: 'Which ports does LiveKit need open on AWS?'
-    a: 'TCP 443 or 7880 for signalling and the API, TCP 7881 for ICE over TCP, and the UDP RTP range (50000-60000 by default) for media. The UDP range in the security group must match port_range_start and port_range_end in livekit.yaml exactly.'
+    a: 'TCP 443 or 7880 for signalling and the API, TCP 7881 for ICE over TCP, and the UDP RTP range (50000-60000 by default) for media. The UDP range in the security group must allow the range configured in livekit.yaml.'
   - q: 'Can LiveKit run behind an AWS load balancer?'
     a: 'Signalling can: port 7880 can sit behind a load balancer that terminates TLS. Media cannot. RTP is UDP flowing to one specific node, so the instance needs a public IP and the RTP range must reach it directly.'
   - q: 'How big should the LiveKit RTP port range be?'
-    a: 'Size it from ports per call. We measured 18.3 media ports per call, dead linear, so a 10,001-port range is exhausted near 550 calls. Treat the range as a capacity decision and leave headroom below it.'
+    a: 'Size it from ports per call. Measure unique allocated local ports for your transport mode and call topology. The saved 18.3 counter is not a verified allocation rate. UDP mux uses a different model.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 import Practice from '../../../components/course/Practice.astro';
@@ -33,19 +36,19 @@ import CourseFigure from '../../../components/course/figures/CourseFigure.astro'
 
 You launch an instance, start the server, and a test client connects in seconds. Signalling works. Then the first real call joins and nobody hears anything.
 
-On EC2 that is nearly always one of two things. The server is advertising an address callers cannot reach, or the UDP port range in `livekit.yaml` and the one in the security group disagree. Neither one writes an error anywhere.
+Two useful first checks are addressing and firewall coverage. The server may advertise an address callers cannot reach, or the UDP port range in `livekit.yaml` and the one in the security group disagree. Inspect ICE state, captures and VPC Flow Logs as well as application logs.
 
 The server itself is a single Go binary with modest needs, and those two sharp edges are the whole difficulty. This page walks through the setup (instance, network, `livekit.yaml`, security group) so both places agree on day one, and sizes the port range on purpose. What happens when a node outgrows its range is its own story, told in [port exhaustion before CPU](/learn/100x/livekit/livekit-port-exhaustion).
 
-## Which EC2 instance and network does LiveKit need?
+## Instance Selection
 
-Use a compute-optimised instance in a public subnet with a public IP. Media forwarding is CPU and network, so memory-heavy instance families buy you nothing, and LiveKit's [deployment guide](https://docs.livekit.io/transport/self-hosting/deployment/) recommends compute-optimised types too.
+Use a compute-optimised instance in a public subnet with a public IP. Media forwarding is CPU and network, so memory-heavy instance families are not automatically the best fit, and LiveKit's [deployment guide](https://docs.livekit.io/transport/self-hosting/deployment/) recommends compute-optimised types too.
 
 The public IP is the part people try to avoid. Media must reach the machine directly: RTP is UDP flowing to one specific node, so placing the SFU's media ports behind a load balancer does not work, and the balancer adds nothing but confusion. Signalling is different. Port 7880 is plain HTTP and WebSocket, and it can sit behind a load balancer or reverse proxy that terminates TLS.
 
 Attach an [Elastic IP](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-instance-addressing.html). An ordinary EC2 public IP is released when the instance stops and a new one is assigned on start, and every client and carrier you configured is then pointing at an address you no longer own.
 
-## Which ports does LiveKit need open on AWS?
+## Network Ports
 
 Three port groups, two of them plain TCP. This is where deployments fail:
 
@@ -65,13 +68,13 @@ Three port groups, two of them plain TCP. This is where deployments fail:
 
 As inbound security group rules, that looks like this:
 
-| Protocol | Port range  | Source                             | Purpose                      |
-| -------- | ----------- | ---------------------------------- | ---------------------------- |
-| TCP      | 443         | `0.0.0.0/0`                        | Signalling over TLS          |
-| TCP      | 7880        | Your load balancer, or `0.0.0.0/0` | API and WebSocket            |
-| TCP      | 7881        | `0.0.0.0/0`                        | ICE over TCP                 |
-| UDP      | 50000-60000 | `0.0.0.0/0`                        | RTP media                    |
-| UDP      | 3478        | `0.0.0.0/0`                        | Embedded TURN/UDP (optional) |
+| Protocol | Port range  | Source                      | Purpose                      |
+| -------- | ----------- | --------------------------- | ---------------------------- |
+| TCP      | 443         | `0.0.0.0/0`                 | Signalling over TLS          |
+| TCP      | 7880        | Your TLS load balancer only | API and WebSocket            |
+| TCP      | 7881        | `0.0.0.0/0`                 | ICE over TCP                 |
+| UDP      | 50000-60000 | `0.0.0.0/0`                 | RTP media                    |
+| UDP      | 3478        | `0.0.0.0/0`                 | Embedded TURN/UDP (optional) |
 
 The TURN row only applies if you enable the embedded TURN server; [the TURN lesson](/learn/100x/livekit/livekit-turn-server-setup) covers when you need it. If the SIP service runs on the same instance, it brings its own signalling port and its own RTP range, both covered in [self-hosted SIP](/learn/100x/livekit/livekit-sip-self-hosted). LiveKit's [ports and firewall reference](https://docs.livekit.io/transport/self-hosting/ports-firewall/) lists every port and the config key that sets it.
 
@@ -84,7 +87,7 @@ aws ec2 authorize-security-group-ingress \
   --cidr 0.0.0.0/0
 ```
 
-## The `livekit.yaml` lines that matter
+## Server Configuration
 
 Five keys under `rtc` decide whether media flows. Here they are with the values from LiveKit's recommended production config:
 
@@ -105,37 +108,38 @@ keys:
 
 Start the server with `livekit-server --config /etc/livekit.yaml`. The full list of keys is in LiveKit's [config-sample.yaml](https://github.com/livekit/livekit/blob/master/config-sample.yaml). Once you add a second node, a `redis` block joins this file; [the multi-node lesson](/learn/100x/livekit/livekit-multi-node-redis) covers it.
 
-## The RTP range lives in two places
+## Firewall Coverage
 
-The RTP range in `livekit.yaml` and the UDP range in the security group must match exactly. If they drift, the server hands out ports the firewall blocks.
+The RTP range in `livekit.yaml` and the UDP range in the security group must cover the configured ports. If they drift, the server hands out ports the firewall blocks.
 
-Here is why that hurts. Security groups only have allow rules, so a media port the firewall does not permit is dropped before it reaches the machine, and nothing records the drop. The server never sees the packet, so it cannot log it. The call connects, and carries silence.
+Here is why that hurts. Security groups only have allow rules, so a media port the firewall does not permit is dropped before it reaches the machine, and application logs may miss the drop. The server never sees the packet, so it cannot log it. The call connects, and carries silence.
 
 That failure mode gets a full lesson in [unit 5](/learn/100x/livekit#unit-5), because it found us at 612 concurrent calls.
 
 <Pull>
   The RTP range is written twice: once in the server config, once in the security group. When the
-  two disagree, calls connect and carry silence, and no log on either side records why.
+  two disagree, calls connect and carry silence, and packet captures or network flow logs may be
+  needed.
 </Pull>
 
-## How big should the RTP port range be?
+## Port Budget
 
-Size it from ports per call, and write the result down as a capacity number. Our measurement, across three saturation steps: 18.3 media ports per call, dead linear.
+First choose range mode or UDP multiplexing. The [port reference](https://docs.livekit.io/transport/self-hosting/ports-firewall/) documents `rtc.udp_port` for mux; when enabled, the range settings are not used. The older 18.3 counter below is an unverified case-study input, not a LiveKit default.
 
 Here is the arithmetic with the default range:
 
 | Quantity                      | Value                                 |
 | ----------------------------- | ------------------------------------- |
 | Default range, 50000 to 60000 | 10,001 ports                          |
-| Ports per call (measured)     | 18.3                                  |
+| Assumed ports per call        | 18.3                                  |
 | Calls at exhaustion           | 10,001 / 18.3, which is near 550      |
 | Ports at 400 calls            | 400 x 18.3 = 7,320 (73% of the range) |
 
-A 10,001-port range is exhausted near 550 calls. That is also roughly where the 70% CPU line arrives, which is exactly why the port ceiling hides behind it. [Port exhaustion before CPU](/learn/100x/livekit/livekit-port-exhaustion) shows why we settled on 400 calls per node, with 27% port headroom.
+That arithmetic only holds if 18.3 represents distinct allocated local ports within that range. Our saved report does not establish that. [Port Capacity](/learn/100x/livekit/livekit-port-exhaustion) explains how to validate the counter before sizing from it.
 
 Whatever range you configure is a capacity decision. If you widen it, widen the security group first and the server config second, so there is never a moment where the server offers ports the firewall drops.
 
-## Advertise the address callers can actually reach
+## Public Addressing
 
 The server must announce the public IP that clients can reach. The private address the instance sees is useless to a caller outside the VPC. EC2 maps the public address onto the instance's private one through one-to-one NAT, so the machine only sees its private VPC address on its own interface.
 
@@ -147,3 +151,8 @@ The server must announce the public IP that clients can reach. The private addre
   media ports is a place for media to die invisibly, and [unit 5](/learn/100x/livekit#unit-5) is a
   tour of what that costs.
 </Practice>
+
+<Checkpoint
+  question="Must a firewall range exactly equal the configured media range?"
+  answer="It must allow every advertised media port. A broader allow rule can work, but should be justified. With UDP mux, open the configured mux port instead of assuming range mode."
+/>

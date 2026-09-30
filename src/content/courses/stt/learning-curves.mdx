@@ -1,0 +1,53 @@
+---
+lessonId: stt-lesson-013
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 13
+unit: 4
+unitTitle: "Training Experiments"
+title: "Learning Curves"
+navTitle: "Learning Curves"
+summary: "Read loss and decoded errors together, including the blank-output phase at the start of training."
+seoTitle: "Learning Curves for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+At epoch one, training loss was about 4.59 and validation digit error rate was 100%. At epoch eight, loss had fallen to about 2.04, but that error rate was still 100%. The model was changing without yet producing useful greedy transcripts.
+
+## Inspect Progress
+
+<TrainingEvidence kind="history" />
+
+The table comes from the saved run, not a hand-shaped demonstration curve. The same validation set is evaluated after every epoch. A lower training loss alone cannot tell you whether a caller's identifier will be correct.
+
+## Blank Outputs
+
+Early CTC training can put enough probability on blank that the greedy path collapses to an empty string. The loss can still improve as probability mass changes among paths. Keep empty outputs in both error calculations and qualitative review.
+
+To inspect the relationship yourself:
+
+```python
+import json
+history = json.load(open('my-run/history.json'))
+for row in history:
+    print(row['epoch'], row['train_loss'], row['validation_der'])
+```
+
+## Generalisation Gap
+
+By the final epoch, training loss was about 0.0019 while validation digit error rate was 36.25%. That gap is a warning about this small training setup and its held-out speaker, not proof of one single cause. Data diversity, augmentation and architecture are hypotheses to test separately.
+
+A smooth loss curve is especially unhelpful if the target policy or split is wrong. Review [Transcript Policy](/learn/100x/stt/transcript-policy) and [Speaker Splits](/learn/100x/stt/speaker-splits) before interpreting an apparent improvement.
+
+<Checkpoint question="Should we stop logging predictions once the loss curve looks smooth?" answer="No. Retain decoded validation outputs or representative probes. Loss measures the training objective, while the product consumes strings and actions." />
+
+Your deliverable is a short note identifying an epoch where loss and useful decoding disagree. Next, apply an explicit [Checkpoint Selection](/learn/100x/stt/checkpoint-selection) rule rather than choosing the prettiest curve.

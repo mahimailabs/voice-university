@@ -1,0 +1,12 @@
+diagram theme: light background: #fcfcfc text: (color: #0a0a0a)
+default node text: (size: 18) fill: #fcfcfc border: #95959d
+default edge line: #55555c line: (path: curved)
+style dim text: (color: #55555c)
+
+node audio "Incoming audio" icon: laptop 
+node asr "Speech recognizer" icon: cube right of audio
+node text "Partial + final / transcripts" shape: document right of asr
+node policy "Turn + entity / checks" icon: cubes right of text
+edge audio -> asr
+edge asr -> text
+edge text -> policy line: #6f3fb0

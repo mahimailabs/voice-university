@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="284" height="508" viewBox="0 0 284 508" font-family="'DejaVu Sans Mono', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace" font-size="14px">
+  <defs>
+    <marker id="arrow-55555c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55555c"/>
+    </marker>
+    <marker id="arrow-55555c-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55555c"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="284" height="508" fill="#fcfcfc"/>
+  <path d="M59.5 40 H216.5 L232.5 56 V83 a8 8 0 0 1 -8 8 H59.5 a8 8 0 0 1 -8 -8 V48 a8 8 0 0 1 8 -8 Z" fill="#fcfcfc" stroke="#95959d"/>
+  <path d="M216.5 40 V56 H232.5" fill="none" stroke="#95959d"/>
+  <g font-size="17px">
+  <text x="142" y="71.45" fill="#0a0a0a" text-anchor="middle">Spectral frames</text>
+  </g>
+  <g transform="translate(119 147) scale(1.91667)">
+    <path d="M6.6 2.6 L11 4.800000000000001 L6.6 7 L2.1999999999999993 4.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M2.1999999999999993 4.800000000000001 L6.6 7 L6.6 11.4 L2.1999999999999993 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M11 4.800000000000001 L6.6 7 L6.6 11.4 L11 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M17.4 2.6 L21.799999999999997 4.800000000000001 L17.4 7 L12.999999999999998 4.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M12.999999999999998 4.800000000000001 L17.4 7 L17.4 11.4 L12.999999999999998 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M21.799999999999997 4.800000000000001 L17.4 7 L17.4 11.4 L21.799999999999997 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M12 11.6 L16.4 13.8 L12 16 L7.6 13.8 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M7.6 13.8 L12 16 L12 20.4 L7.6 18.2 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M16.4 13.8 L12 16 L12 20.4 L16.4 18.2 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="17px">
+  <text x="142" y="220.45" fill="#0a0a0a" text-anchor="middle">Strided convolutions</text>
+  </g>
+  <g transform="translate(119 282) scale(1.91667)">
+    <path d="M12 2.6 L20.4 6.800000000000001 L12 11 L3.5999999999999996 6.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M3.5999999999999996 6.800000000000001 L12 11 L12 19.400000000000002 L3.5999999999999996 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M20.4 6.800000000000001 L12 11 L12 19.400000000000002 L20.4 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="17px">
+  <text x="142" y="355.45" fill="#0a0a0a" text-anchor="middle">Bidirectional GRU</text>
+  </g>
+  <path d="M74.5 417 H201.5 L217.5 433 V460 a8 8 0 0 1 -8 8 H74.5 a8 8 0 0 1 -8 -8 V425 a8 8 0 0 1 8 -8 Z" fill="#fcfcfc" stroke="#95959d"/>
+  <path d="M201.5 417 V433 H217.5" fill="none" stroke="#95959d"/>
+  <g font-size="17px">
+  <text x="142" y="448.45" fill="#0a0a0a" text-anchor="middle">Token scores</text>
+  </g>
+  <line x1="142" y1="91" x2="142" y2="147" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <line x1="142" y1="226" x2="142" y2="282" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <line x1="142" y1="361" x2="142" y2="417" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+</svg>

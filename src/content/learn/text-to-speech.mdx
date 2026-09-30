@@ -1,73 +1,77 @@
 ---
-title: What makes a good text-to-speech model for a voice agent
+title: Speech synthesis for voice agents
 label: Text to speech
 tag: TTS
-description: 'Text to speech is the voice a caller hears. This guide covers why a natural-sounding voice is not the same as a voice that works, and the small things that quietly break real calls.'
+description: 'Evaluate pronunciation, audible latency, playback continuity and interruption recovery on your actual audio path.'
 order: 3
-updatedDate: 2026-08-19
+updatedDate: 2026-09-30
+cover: ./images/tts-cover.webp
+coverAlt: An audio engineer adjusts a synthesis console beside a telephone and loudspeaker.
+socialImage: ./images/tts-social.jpg
 related:
   - { label: 'Turn detection', href: '/learn/components/turn-detection' }
   - { label: 'Latency calculator', href: '/tools/latency-calculator' }
   - { label: 'Custom speech models', href: '/services/custom-speech-models' }
 ---
 
-import Figure from '../../components/learn/Figure.astro';
-import TtsSpeed from '../../components/learn/figures/TtsSpeed.astro';
+import LearnDiagram from '../../components/learn/LearnDiagram.astro';
+import Checkpoint from '../../components/learn/Checkpoint.astro';
 
-Every text-to-speech demo sells the same thing: how natural the voice sounds. It is the easiest quality to judge in thirty seconds, and close to the least important once real calls start.
+A voice can sound natural and still read an order code incorrectly. It can also synthesize quickly while the caller waits behind an output buffer.
 
-Text to speech is the part of the agent that turns its written reply into the spoken voice the caller hears. (The software that does it is called the model, the industry's word for it.) What actually decides whether that voice works on a call is duller and harder to notice than naturalness: whether it answers quickly and evenly, whether it reads a confirmation code correctly, and whether it can get out of the way when the caller talks over it. None of those show up in a demo.
+Evaluate **what the caller hears**: the words, their delivery, the delay before them, and whether they stop when needed. Naturalness belongs in that evaluation alongside correctness and timing.
 
-## The speed on the label measures the wrong thing
+## Playback Timing
 
-Vendors advertise how fast the voice starts responding, and they usually time the wrong moment.
+Keep three milestones separate: the synthesis request, the first usable audio received, and the first audible sample at the receiver. Network delivery, decoding and buffering sit between generation and playback.
 
-Think of a streaming video. The download starts the instant you press play, but you watch nothing until enough has loaded to begin playing. Spoken audio works the same way. It arrives as a stream of small pieces, and a few of them have to arrive before there is anything to play out loud. Many speed tests stop their stopwatch the moment that first piece of data comes back. But the caller hears nothing until real, playable sound actually starts, which can be a third of a second later.
+A provider’s first-byte measurement may not use the same boundary as your own first-audio measurement. Record the definitions before comparing numbers. Measure distributions under expected concurrency, including cold starts and longer requests.
 
-So the number worth trusting is the time until the caller actually hears sound, not the time until the first data comes back. Often, just measuring from that later, honest moment reveals more delay than swapping in a fancier model ever would.
+## Pronunciation Control
 
-<Figure label="the speed the caller actually feels" filled>
-  <TtsSpeed />
-</Figure>
+Prepare examples from the actual workflow: dates, currencies, abbreviations, names and identifiers. Specify the intended reading before listening. `007` might be an identifier to spell digit by digit, while `7` might be a quantity.
 
-## Usually fast is not the same as always fast
+[SSML pronunciation controls](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-synthesis-markup-pronunciation) include phonemes and custom lexicons in supported Azure voices. Control support varies by engine and voice; verify the exact combination you deploy.
 
-A voice that answers in a quarter of a second most of the time, but occasionally freezes for two seconds, feels broken. And the two-second one always seems to land in the middle of something important. Callers remember the worst moment of a call, not the average of it.
+| Input type | Evaluation question |
+| --- | --- |
+| Identifier | Can a listener recover every character, including leading zeros? |
+| Amount | Are the value, currency and decimal part unambiguous? |
+| Date | Is the spoken date consistent with the application’s locale? |
+| Domain term | Does the agreed pronunciation survive different sentences? |
 
-So the question is not "how fast is it on average," but "how often does it stall." Test it while the system is busy handling other calls, not warmed up and idle, because busy is exactly when the stalls happen and exactly what your callers will get.
+Confirm difficult strings through a separate channel when the workflow supports it. Clear pronunciation reduces ambiguity; it does not prove that the caller wrote the value correctly.
 
-## The thing that actually breaks calls is numbers and codes
+## Streaming Continuity
 
-Here is where a beautiful, natural voice helps you the least, and where most calls quietly fail.
+A fast start is insufficient if playback repeatedly runs dry. Track buffer underruns, inter-chunk gaps and synthesis throughput across a full answer.
 
-It does not matter how lovely the voice is if it reads the booking number wrong. Said out loud, whole families of letters and numbers sound almost the same, and a phone line makes it worse. Say them and you will hear it: B, D, P, T, and V all rhyme. So do the letter O and the way people say zero, "oh." "M" and "N" blur together. Mishear a single character and the whole confirmation code is wrong, and the caller writes down something that will never work.
+Text segmentation creates another tradeoff: sending an early fragment reduces waiting, but the synthesizer may lack context for phrasing or pronunciation. Compare complete sentences with smaller segments on the same material. Avoid universal chunk-size rules.
 
-> It does not matter how natural the voice sounds if it reads the booking number wrong. Test the voice on the strings the call depends on, not on the demo script.
+<LearnDiagram name="tts" caption="Measure generation and receiver playback separately. The output queue is also where stale audio must be cleared." />
 
-So test the voice on the things that matter: real order numbers, phone numbers, dates, and amounts of money, spoken over a real phone line, and check every single character. A voice that reads a paragraph of marketing copy beautifully has told you nothing about whether a stranger can write down the code it just read.
+## Interruption Handling
 
-## When the caller cuts in, it has to stop fast
+Audio does not have to finish an entire network chunk before it can stop. The application can cancel generation and discard queued samples. The effective stopping delay depends on the detection, transport and playback path.
 
-People interrupt. When they do, the agent has to go quiet almost instantly. If it keeps talking over the caller for even half a second, two things go wrong: it feels rude, and it drowns out the start of what the caller is saying, so the agent mishears them next.
+[LiveKit’s speech controls](https://docs.livekit.io/agents/multimodality/audio/) include interruption and playout handling. Verify what reaches the receiver, especially if audio has already been buffered elsewhere. Cancelling the model request alone is not enough.
 
-Remember that the voice arrives in small pieces. That matters here. The smaller those pieces are, the more cleanly the agent can stop, mid-word if it has to. If the voice is delivered in big chunks, it has to finish the current chunk before it can go quiet, so it keeps talking longer than it should. And when it does stop, it has to actually throw away the pieces it had lined up and ready to play, not politely let them finish. Test that interrupting the agent feels immediate, like a person stopping the moment you speak, not like talking over someone who will not let go.
+<Checkpoint question="The TTS request is cancelled, but the caller still hears the old answer. Where would you look next?" answer="Inspect the playback queues and already-delivered audio. Stop local playout and clear queued samples where supported, then check downstream buffering. Generation cancellation prevents future production; it does not retract every sample already sent." />
 
-## Does it stay the same voice for the whole call?
+## Voice Consistency
 
-On longer answers, or after a call drops and reconnects, some voices slowly drift. The pitch creeps up, the pace shifts, and the voice quietly becomes a slightly different person. Callers notice even when they cannot say what changed. It just feels off, as if someone swapped seats.
+Listen across short replies, long replies, reconnects and different sentence boundaries. Track pronunciation, loudness, speaking rate and speaker identity, as well as subjective preference.
 
-Short demo clips never show this, because it takes a while to appear. Test it on long replies and across a call that disconnects and comes back, and listen for whether it is still recognisably the same speaker at the end.
+Use the actual telephone or browser path. A studio recording is useful for inspecting synthesis; it does not reproduce the caller’s codec and device. The [phone-channel guide](/blog/building-a-phone-line-in-pytorch) explains what a controlled approximation can and cannot show.
 
-## Can you make it say one word your way?
+## Evaluation Plan
 
-A voice agent constantly needs small, local control: lean on one word, pause before a code, slow down for a number, or fix the way it says your brand name. Two things make this easy or painful.
+| Check | Evidence |
+| --- | --- |
+| Critical strings | Listener transcriptions compared with intended readings |
+| Response onset | Request, first-audio and receiver-playback timestamps |
+| Continuity | Underruns and gaps across full replies |
+| Interruptions | Caller onset to stopped playback; stale audio after cancellation |
+| Voice quality | Blind listening notes across representative conditions |
 
-First, you want to change one word without redoing the whole sentence. Second, you want a fix like a brand pronunciation to stick everywhere, once, instead of being re-entered on every reply. Watch out for a modern trap: some of the newest, best-sounding voices quietly ignore these controls even though the older ones obeyed them. Check it on the exact voice you plan to ship, not the one in the documentation.
-
-One smaller cousin of this problem is worth a glance. Sometimes the written reply the voice is handed has stray symbols in it: a leftover asterisk, a bit of formatting, an emoji. The voice will read them out loud, literally saying the word "asterisk." It happens when the text was not cleaned up before it reached the voice, and it is jarring the first time a caller hears it.
-
-## How to judge it
-
-Judge the voice on a call, not in a demo, and judge it in this order: does it read numbers and codes right, does it answer quickly and evenly, does it stop the instant the caller cuts in, and does it stay one voice from start to finish. Naturalness is the tie-breaker between two voices that already pass all of that. It is not the test.
-
-When a provider's own voices cannot clear that bar for your language, your accent, or your line of business, that is the point where a voice built specifically for you starts to earn its cost, which is what our [custom speech](/services/custom-speech-models) work is for.
+Keep the input text, preprocessing, voice configuration and resulting audio together. For deeper implementation work, continue with [TTS from Scratch](/learn/100x/tts). Test [turn detection](/learn/components/turn-detection) separately so a slow interruption decision is not misdiagnosed as a slow voice.

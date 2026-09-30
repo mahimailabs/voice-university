@@ -1,0 +1,51 @@
+---
+lessonId: stt-lesson-010
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 10
+unit: 3
+unitTitle: "First Recognizer"
+title: "CTC Alignment"
+navTitle: "CTC Alignment"
+summary: "See why blanks and repeated frame labels let an untimed transcript supervise a longer audio sequence."
+seoTitle: "CTC Alignment for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+The target `77` has two symbols. The audio may produce dozens of output frames. We do not know which frame should carry each seven, and we do not label those timestamps by hand.
+
+CTC trains by accounting for multiple frame paths that collapse to the same target. Greedy decoding later chooses one path; training and decoding are related but different operations.
+
+## Collapse Rules
+
+<STTLab mode="ctc" client:load />
+
+First merge adjacent identical frame labels, then remove blank. `7 7 _ 7` becomes `77`. If you remove blank before merging, the two sevens become neighbours and you incorrectly return `7`.
+
+## Training Objective
+
+The model gives a distribution at each frame. Valid paths allocate characters and blanks differently while preserving target order. The loss accounts for their combined probability rather than forcing one hand-picked alignment. The [CTC visual reference](https://distill.pub/2017/ctc/) develops this distinction.
+
+```python
+criterion = torch.nn.CTCLoss(blank=0, zero_infinity=False)
+loss = criterion(log_probs, targets, output_lengths, target_lengths)
+```
+
+Our tensor order for log probabilities is time × batch × vocabulary. Targets contain no blank tokens. [The PyTorch reference](https://docs.pytorch.org/docs/2.14/generated/torch.nn.CTCLoss.html) documents the accepted shapes.
+
+## Failure Signals
+
+An impossible alignment can produce an infinite loss. Do not immediately hide that with `zero_infinity=True`. Inspect time downsampling, repeated characters and target lengths first. A zeroed loss can make a broken example stop contributing while the overall run appears healthy.
+
+<Checkpoint question="Does a blank frame mean the microphone recorded silence?" answer="Not necessarily. Blank is a modelling symbol for no character emission at that step. It is not a calibrated voice-activity detector or a timestamped silence label." />
+
+Record your predicted result for each interactive path before revealing the collapsed output. Then implement [Greedy Decoding](/learn/100x/stt/greedy-decoding) and compare its strings with the [target contract](/learn/100x/stt/transcript-policy).

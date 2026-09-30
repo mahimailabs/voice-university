@@ -1,12 +1,13 @@
 ---
+lessonId: livekit-lesson-021
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 21
 unit: 5
-unitTitle: 'Finding the ceilings'
-title: 'Scaling inbound SIP: why your load balancer never sees the calls'
-navTitle: 'Scaling inbound SIP'
-summary: 'You need 500 concurrent inbound calls spread across SIP nodes. A load balancer will not do it: the carrier trunk decides, and often one list in its console is the fix.'
+unitTitle: 'Capacity Planning'
+title: 'Inbound Distribution'
+navTitle: 'Inbound Distribution'
+summary: 'You need 500 concurrent inbound calls spread across SIP nodes. Distribution depends on the carrier targets and your SIP routing tier. Verify where INVITEs and RTP actually go.'
 seoTitle: 'Scaling Inbound SIP: Origination URIs and SIP Proxies | Mahimai'
 keywords:
   - 'scaling inbound SIP'
@@ -17,28 +18,28 @@ keywords:
 proficiency: 'Advanced'
 faq:
   - q: 'Can a load balancer distribute inbound SIP calls across LiveKit SIP nodes?'
-    a: 'Not in the usual setup. The carrier sends each INVITE to the Origination URIs configured on the trunk, so distribution is decided in the carrier account. Several URIs at the same priority and equal weight spread calls and fail over; one URI sends every call to one node.'
+    a: 'Not in the usual setup. The carrier sends each INVITE to the Origination URIs configured on the trunk, so distribution is decided in the carrier account. For carriers that support weighted targets, equal-priority entries can distribute new calls. A single URI might instead point at a SIP routing tier.'
   - q: 'Does a SIP proxy like Kamailio or OpenSIPS carry the call audio?'
-    a: 'No. They proxy SIP signalling only. The media server puts its own address in the SDP, so RTP flows from the carrier straight to that node. Hiding the media nodes needs a media relay as well, which adds a component every call depends on.'
+    a: 'No. In a signalling-only deployment they proxy SIP; they can also integrate a separate media relay. The media server puts its own address in the SDP, so RTP flows from the carrier straight to that node. Hiding the media nodes needs a media relay as well, which adds a component every call depends on.'
   - q: 'When is a SIP proxy tier worth adding in front of LiveKit?'
-    a: 'When the carrier cannot hold multiple Origination URIs, or when node count makes managing the URI list a standing chore, which in practice is around eight nodes. At four or five nodes, pointing the carrier at each node directly is simpler and works.'
+    a: 'When the carrier cannot hold multiple Origination URIs, or when node count makes managing the URI list a standing chore, based on your rate of node changes and operational needs. For a small stable list, direct carrier targets may be sufficient.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import DiagramEmbed from '../../../components/course/figures/DiagramEmbed.astro';
 
 The question was how to spread 500 concurrent inbound calls across several SIP nodes. The obvious answer is a load balancer.
 
-It does not work, because the balancer is never asked.
+It only works if the carrier targets it and it handles the required SIP transport and routing behaviour. A web load balancer elsewhere in the stack sees none of these calls.
 
-By the end of this lesson you'll know who actually decides where an inbound call lands, how to get spreading and failover without building anything, and when a SIP proxy is worth the extra tier (and what it still leaves exposed).
+## Carrier Routing
 
-## Why a load balancer does nothing for inbound SIP
+Your carrier chooses the configured next hop. Providers differ; [Twilio’s origination URL API](https://www.twilio.com/docs/sip-trunking/api/originationurl-resource) is one concrete example of priority and weight semantics. It sends INVITEs to the Origination URIs configured on the trunk, one per address you gave it, so the distribution decision is made in the carrier's console before any packet reaches your infrastructure.
 
-Your carrier decides where inbound calls go. It sends INVITEs to the Origination URIs configured on the trunk, one per address you gave it, so the distribution decision is made in the carrier's console before any packet reaches your infrastructure.
-
-A carrier does not resolve a name and connect to whatever answers, the way a browser does. It works through the list you configured. Put one URI on the trunk and every call goes to one node, no matter how many nodes you run behind it.
+Carrier behaviour varies: hostname resolution, multiple targets, priority, weighting and failover are provider-specific. A URI may point at a node or at a SIP-aware routing tier. The table below assumes each URI targets one node directly.
 
 Here is what the three possible configurations actually produce:
 
@@ -50,7 +51,7 @@ Here is what the three possible configurations actually produce:
 
 The second and third rows look almost identical in a carrier config screen. Only one of them spreads load.
 
-## What each SIP node needs before the carrier can use it
+## Node Reachability
 
 Every SIP node needs its own stable public address, and every node you add is another trunk entry. Scaling out is an address plus a change in the carrier account, made by whoever owns that account.
 
@@ -69,31 +70,36 @@ On the LiveKit side, the [inbound trunk and dispatch rule](https://docs.livekit.
   media still goes straight to the node in the SDP.
 </DiagramEmbed>
 
-## Where a Kamailio or OpenSIPS proxy fits
+## SIP Proxies
 
 A SIP proxy lets the carrier point one URI at the proxy while the proxy distributes calls to your nodes internally. Node count stops being the carrier's business.
 
 It also does two things a carrier URI list does not do on its own. It can select a node on real load, and it can drop a dead node by probing it with keepalives. Kamailio's [dispatcher module](https://kamailio.org/docs/modules/stable/modules/dispatcher.html) is the usual building block: weighted and load-based distribution across a destination set, with SIP OPTIONS probes that mark an unresponsive destination inactive.
 
-## What a SIP proxy does not fix: media
+## Media Routing
 
-Kamailio and OpenSIPS are signalling proxies. They never touch the audio. Your media server answers with its own address in the SDP, so RTP flows from the carrier straight to that node and bypasses the proxy entirely.
+Kamailio and OpenSIPS are signalling proxies. In a signalling-only configuration they do not relay the audio; deployments can integrate RTP relays. Your media server answers with its own address in the SDP, so RTP flows from the carrier straight to that node and bypasses the proxy entirely.
 
 This is the part people miss. The proxy collapses N trunk entries into one. It does not collapse N public addresses into one, because the carrier still needs to reach every media node directly. (SIP carries the session setup, per [RFC 3261](https://www.rfc-editor.org/rfc/rfc3261); the addresses the audio actually uses live in the SDP body it carries.)
 
-If the goal is private media nodes, you have to pair the proxy with a media relay. That combination is what a session border controller actually is here. Then every call's audio passes through one relay, which must itself be sized, monitored and scaled, and which becomes a single point of failure for calls that previously had none. The same port arithmetic from [lesson 19](/learn/100x/livekit/livekit-port-exhaustion) now applies to a box that carries everyone's audio.
+If the goal is private media nodes, you have to pair the proxy with a media relay. That combination is what a session border controller actually is here. Then every call's audio passes through one relay, which must itself be sized, monitored and scaled, and which introduces a new failure domain that also needs redundancy. The same port arithmetic from [lesson 19](/learn/100x/livekit/livekit-port-exhaustion) now applies to a box that carries everyone's audio.
 
-## Direct URIs or a proxy tier: how to choose
+## Routing Choices
 
-At four or five nodes, the direct path is simpler and it works. The proxy earns its place in two situations:
+A small, stable node list can be managed directly if the carrier supports it. The proxy earns its place in two situations:
 
 - the carrier cannot hold multiple Origination URIs on one trunk, or
-- node count makes URI management a standing chore, which in practice is around eight nodes.
+- node count makes URI management a standing chore, based on your rate of node changes and operational needs.
 
 Below that, a proxy adds a component to operate without removing any public addresses.
 
-## Check this first
+## Distribution Test
 
-Before building any of it, open the carrier console and read the Origination URI list on the trunk. If it has one entry, that is the whole problem. Adding the other nodes at the same priority and equal weight is a two-minute fix, and it gets you spreading and failover without a new tier.
+Before building any of it, open the carrier console and read the Origination URI list on the trunk. If it targets one node directly, verify whether the provider supports additional weighted targets. Test new-call distribution and failure behaviour; do not assume priority settings migrate existing calls.
 
 Next: with signalling and media both spread, [turn the per-call numbers into a capacity model](/learn/100x/livekit/voice-capacity-model) that says how many nodes of each tier you actually need.
+
+<Checkpoint
+  question="Will adding a SIP node automatically redirect a carrier\u2019s traffic?"
+  answer="Only if the carrier or routing tier can discover and select it. Verify target configuration, health checks and where both signalling and media go."
+/>

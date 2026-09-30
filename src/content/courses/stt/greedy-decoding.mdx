@@ -1,0 +1,58 @@
+---
+lessonId: stt-lesson-011
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 11
+unit: 3
+unitTitle: "First Recognizer"
+title: "Greedy Decoding"
+navTitle: "Greedy Decoding"
+summary: "Convert frame scores into strings, then test repeated digits and padded frames explicitly."
+seoTitle: "Greedy Decoding for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+Greedy decoding takes the most likely token at each frame and collapses the resulting path. It is easy to inspect and makes a useful baseline. It does not necessarily find the output string with the greatest total probability across all paths.
+
+## Decode Once
+
+```python
+def collapse(path):
+    return ''.join(VOCAB[v] for i, v in enumerate(path)
+        if v and (i == 0 or v != path[i - 1]))
+
+path = log_probs.argmax(-1)[:, batch_index].tolist()
+text = collapse(path[:output_length])
+```
+
+Truncate to the real output length before collapsing. Otherwise padded frames can add characters that were never part of the utterance. The blank check uses the token ID, so the spoken zero is preserved.
+
+## Edge Cases
+
+```python
+assert collapse([8, 8, 0, 8]) == '77'
+assert collapse([1, 1, 0, 1]) == '00'
+assert collapse([0, 0, 0]) == ''
+assert collapse([8, 8, 8]) == '7'
+```
+
+These cases inspect semantics, not model quality. Run them before training; an incorrect decoder can make a good model look broken or conceal repeated-digit failures.
+
+## Inspect Errors
+
+Keep reference, hypothesis and source filenames for every decoded sequence. The lab writes them into `results.json`. An empty output is a real hypothesis and must remain in the scoring denominator.
+
+During the short pilot, most early validation outputs were empty even while training loss decreased. This is why [Learning Curves](/learn/100x/stt/learning-curves) pairs loss with decoded errors.
+
+<Checkpoint question="Should we replace an empty output with the most common digit before scoring?" answer="No. That changes the system and can hide deletions. If you add a fallback, evaluate it as a separate policy and retain the original output." />
+
+The [CTC path explanation](https://distill.pub/2017/ctc/) clarifies why a best path and a best collapsed string can differ. [Beam Search](/learn/100x/stt/beam-search) explores that difference later; first run the [Training Loop](/learn/100x/stt/training-loop).

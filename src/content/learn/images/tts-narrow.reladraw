@@ -1,0 +1,12 @@
+diagram theme: light background: #fcfcfc text: (color: #0a0a0a)
+default node text: (size: 18) fill: #fcfcfc border: #95959d
+default edge line: #55555c line: (path: curved)
+style dim text: (color: #55555c)
+
+node text "Prepared text" shape: document 
+node voice "Speech synthesis" icon: cube below text
+node queue "Output queue / clear on interrupt" icon: cubes below voice
+node caller "Receiver / playback" icon: laptop below queue
+edge text -> voice
+edge voice -> queue
+edge queue -> caller line: #6f3fb0

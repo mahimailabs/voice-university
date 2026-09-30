@@ -1,0 +1,43 @@
+{
+  "course": "stt",
+  "unit": 2,
+  "version": "1",
+  "questions": [
+    {
+      "id": "stt-2-1",
+      "prompt": "The same speaker appears in training and test sequences. What should change?",
+      "options": [
+        "Balance digits without separating speakers",
+        "Split by source speaker before assembling sequences",
+        "Shuffle the finished sequences again"
+      ],
+      "correct": 1,
+      "explanation": "Splitting speakers first prevents the model from being tested on familiar voices hidden in new sequences.",
+      "lesson": "/learn/100x/stt/speaker-splits"
+    },
+    {
+      "id": "stt-2-2",
+      "prompt": "An identifier starts with 007. Which transcript should be retained?",
+      "options": [
+        "007",
+        "7",
+        "Seven"
+      ],
+      "correct": 0,
+      "explanation": "Leading zeros are part of the identifier. A text normalizer must not silently change the target.",
+      "lesson": "/learn/100x/stt/transcript-policy"
+    },
+    {
+      "id": "stt-2-3",
+      "prompt": "A short recording is padded to match a longer one. Which length belongs in CTC input_lengths?",
+      "options": [
+        "The longest padded batch length",
+        "Its raw byte count",
+        "Its valid encoder output length"
+      ],
+      "correct": 2,
+      "explanation": "CTC needs the valid number of output frames for each example, excluding padding.",
+      "lesson": "/learn/100x/stt/batch-construction"
+    }
+  ]
+}

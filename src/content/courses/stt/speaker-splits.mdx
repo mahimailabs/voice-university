@@ -1,0 +1,58 @@
+---
+lessonId: stt-lesson-006
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 6
+unit: 2
+unitTitle: "Training Data"
+title: "Speaker Splits"
+navTitle: "Speaker Splits"
+summary: "Separate source speakers before generating examples, and state what your holdout can actually establish."
+seoTitle: "Speaker Splits for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+Split the source recordings before constructing digit sequences. Otherwise a training sequence and a validation sequence can contain the same underlying audio even if their generated filenames differ.
+
+## Split Assignment
+
+The lab uses four source speakers for training, one for validation and one for evaluation. This is our custom split, not the [FSDD recommended recording-index split](https://github.com/Jakobovski/free-spoken-digit-dataset).
+
+| Split | Speakers | Generated sequences |
+| --- | --- | ---: |
+| Training | george, jackson, lucas, nicolas | 600 |
+| Validation | theo | 120 |
+| Evaluation | yweweler | 120 |
+
+The numbers describe generated examples. They do not establish coverage across accents, microphones or real callers. One evaluation speaker is particularly limited evidence about generalisation.
+
+## Leakage Check
+
+```python
+sources = {
+    split: {f for r in rows if r['split'] == split for f in r['files']}
+    for split in ('train', 'validation', 'test')
+}
+assert not sources['train'] & sources['validation']
+assert not sources['train'] & sources['test']
+assert not sources['validation'] & sources['test']
+```
+
+Check speakers too. Source disjointness alone would allow different clips from the same person on both sides; that answers a different question.
+
+## Development History
+
+We first ran 12 epochs, inspected its results, then extended training to 60 epochs after observing poor validation decoding. The evaluation speaker was already viewed during that pilot. Treat the final evaluation numbers as development evidence, not an untouched final benchmark. A release claim needs a newly locked evaluation set.
+
+<Checkpoint question="Can we repeatedly tune against one held-out speaker and still call it a blind test?" answer="No. Once its results influence development, it is part of the development process. Keep a separate final evaluation if you need an unbiased release estimate." />
+
+Retain split assignments in version control. Move to [Batch Construction](/learn/100x/stt/batch-construction), and revisit this boundary when performing [Domain Adaptation](/learn/100x/stt/domain-adaptation).

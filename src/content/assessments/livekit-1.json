@@ -1,0 +1,43 @@
+{
+  "course": "livekit",
+  "unit": 1,
+  "version": "1",
+  "questions": [
+    {
+      "id": "livekit-1-1",
+      "prompt": "Which component carries room media between participants?",
+      "options": [
+        "The transcript database",
+        "The agent dispatch service",
+        "The LiveKit media server"
+      ],
+      "correct": 2,
+      "explanation": "The media server handles room transport. Agent code and model services have separate roles.",
+      "lesson": "/learn/100x/livekit/livekit-architecture"
+    },
+    {
+      "id": "livekit-1-2",
+      "prompt": "A room exists but no agent has joined. What should you inspect?",
+      "options": [
+        "Only the STT word error rate",
+        "Agent dispatch and worker availability",
+        "Only the caller\u2019s volume slider"
+      ],
+      "correct": 1,
+      "explanation": "Room creation and agent dispatch are separate steps. Check whether a job was requested and accepted.",
+      "lesson": "/learn/100x/livekit/livekit-rooms-participants-tracks"
+    },
+    {
+      "id": "livekit-1-3",
+      "prompt": "A local voice agent connects but fails to answer. What is the best next step?",
+      "options": [
+        "Trace input audio, model response and output audio separately",
+        "Assume connection success proves the voice pipeline",
+        "Increase concurrency immediately"
+      ],
+      "correct": 0,
+      "explanation": "Connection success proves little about recognition, generation or playback. Inspect each boundary.",
+      "lesson": "/learn/100x/livekit/livekit-voice-agent-tutorial"
+    }
+  ]
+}

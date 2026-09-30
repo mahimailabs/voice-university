@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="456" height="462" viewBox="0 0 456 462" font-family="'DejaVu Sans Mono', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace" font-size="14px">
+  <defs>
+    <marker id="arrow-55555c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55555c"/>
+    </marker>
+    <marker id="arrow-55555c-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55555c"/>
+    </marker>
+    <marker id="arrow-6f3fb0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f3fb0"/>
+    </marker>
+    <marker id="arrow-6f3fb0-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f3fb0"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="456" height="462" fill="#fcfcfc"/>
+  <g transform="translate(156.5 178) scale(2)">
+    <path d="M6.6 2.6 L11 4.800000000000001 L6.6 7 L2.1999999999999993 4.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M2.1999999999999993 4.800000000000001 L6.6 7 L6.6 11.4 L2.1999999999999993 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M11 4.800000000000001 L6.6 7 L6.6 11.4 L11 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M17.4 2.6 L21.799999999999997 4.800000000000001 L17.4 7 L12.999999999999998 4.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M12.999999999999998 4.800000000000001 L17.4 7 L17.4 11.4 L12.999999999999998 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M21.799999999999997 4.800000000000001 L17.4 7 L17.4 11.4 L21.799999999999997 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M12 11.6 L16.4 13.8 L12 16 L7.6 13.8 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M7.6 13.8 L12 16 L12 20.4 L7.6 18.2 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M16.4 13.8 L12 16 L12 20.4 L16.4 18.2 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="18px">
+  <text x="180.5" y="254.3" fill="#0a0a0a" text-anchor="middle">End-of-turn</text>
+  <text x="180.5" y="278.3" fill="#0a0a0a" text-anchor="middle">decision</text>
+  </g>
+  <g transform="translate(97 40) scale(2)">
+    <path d="M12 2.6 L20.4 6.800000000000001 L12 11 L3.5999999999999996 6.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M3.5999999999999996 6.800000000000001 L12 11 L12 19.400000000000002 L3.5999999999999996 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M20.4 6.800000000000001 L12 11 L12 19.400000000000002 L20.4 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="18px">
+  <text x="121" y="116.3" fill="#0a0a0a" text-anchor="middle">Speech activity</text>
+  </g>
+  <path d="M266 43 H400 L416 59 V111 a8 8 0 0 1 -8 8 H266 a8 8 0 0 1 -8 -8 V51 a8 8 0 0 1 8 -8 Z" fill="#fcfcfc" stroke="#95959d"/>
+  <path d="M400 43 V59 H416" fill="none" stroke="#95959d"/>
+  <g font-size="18px">
+  <text x="337" y="75.3" fill="#0a0a0a" text-anchor="middle">Transcript +</text>
+  <text x="337" y="99.3" fill="#0a0a0a" text-anchor="middle">task context</text>
+  </g>
+  <g transform="translate(156.5 340) scale(2)">
+    <path d="M4 3.6 h16 v11.4 h-16 Z" fill="#fcfcfc" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M2.2 16 h19.6 l1.6 2.6 a0.7 0.7 0 0 1 -0.6 1.1 h-21.6 a0.7 0.7 0 0 1 -0.6 -1.1 Z" fill="#57606a"/>
+    <path d="M9.6 17.2 h4.8 v1 h-4.8 Z" fill="#d6d9e6"/>
+  </g>
+  <g font-size="18px">
+  <text x="180.5" y="416.3" fill="#0a0a0a" text-anchor="middle">Permit response</text>
+  </g>
+  <line x1="137.26" y1="122" x2="159.48" y2="178" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <line x1="297.35" y1="119" x2="235.8" y2="178" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <line x1="180.5" y1="284" x2="180.5" y2="340" stroke="#6f3fb0" stroke-width="1.6" marker-end="url(#arrow-6f3fb0)"/>
+</svg>

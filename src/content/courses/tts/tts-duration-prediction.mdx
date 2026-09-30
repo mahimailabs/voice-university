@@ -1,12 +1,13 @@
 ---
+lessonId: tts-lesson-013
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 13
 unit: 4
-unitTitle: 'The acoustic model'
-title: 'TTS duration prediction and the length regulator'
-navTitle: 'Duration prediction'
-summary: 'Every letter our model reads gets at least one 11.6 ms mel frame. That one clamp is why a duration-driven TTS model cannot silently drop a word it was given.'
+unitTitle: 'Acoustic Modelling'
+title: 'Duration Prediction'
+navTitle: 'Duration Prediction'
+summary: 'Follow alignment targets through the duration predictor and length regulator. Learn what frame allocation guarantees, and why it does not guarantee audible words.'
 seoTitle: 'TTS Duration Prediction and the Length Regulator | Mahimai'
 keywords:
   - 'TTS duration prediction'
@@ -20,26 +21,26 @@ faq:
     a: "It is the step that expands a text sequence to the length of the audio. Each input symbol has a duration in mel frames, and the length regulator repeats that symbol's hidden vector that many times, so the decoder receives one vector per output frame. FastSpeech introduced the name."
   - q: 'Where do the duration targets for training come from?'
     a: "From an alignment between the transcript and the audio. FastSpeech took them from the attention of a teacher model, FastSpeech 2 extracts them from the speech, and our tiny model uses a CTC forced aligner (torchaudio MMS) whose 20 ms frames we convert to the vocoder's 256-sample hop."
-  - q: 'Why do duration-based TTS models not skip words?'
-    a: 'Because the output length is built by adding up one predicted duration per input symbol, and every symbol is given at least one frame. There is no attention step that can jump past part of the text. They can still mispronounce a word, and they cannot say anything the text front end removed before the model saw it.'
+  - q: 'Do explicit durations prevent all skipped words?'
+    a: 'No. Explicit durations remove the attention-traversal failure where decoding jumps over text. A frame allocation can still be too short or decoded poorly, so audible words may be missing or unintelligible.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
 import Practice from '../../../components/course/Practice.astro';
 
-Every letter our model reads gets at least one mel frame, 11.6 ms of audio. It is one call to `torch.clamp` with `min=1`, and it is the reason a duration-driven TTS model cannot quietly skip a word you gave it.
+Text and audio have different lengths. A duration predictor assigns a frame count to each symbol; the length regulator expands the sequence before decoding. Allocating frames does not guarantee intelligible speech.
 
-This page follows durations from the aligner to the output: where the numbers come from, what the length regulator does with them, and what the predictor learns. By the end you will know why parallel models fail differently from attention models, and which failures they still have.
-
-## What is duration prediction in text-to-speech?
+## Symbol Durations
 
 It is predicting how many output frames each input symbol lasts. Text is short and audio is long: a median LJSpeech clip is 102 characters and 6.76 s, which at a 256-sample hop is about 580 mel frames. Something has to decide how those frames are shared out.
 
 Attention-based models such as [Tacotron 2](https://arxiv.org/abs/1712.05884) decide it implicitly. The decoder produces one frame at a time and attends back to the text to work out where it is. [FastSpeech](https://arxiv.org/abs/1905.09263) made the decision explicit: a duration predictor outputs a number per symbol, and a length regulator stretches the sequence to match. Everything downstream can then run in parallel.
 
-## Where do TTS durations come from?
+## Alignment Targets
 
 From an alignment between the transcript and the recording. The model needs true durations to learn from, and those have to be measured on the training audio.
 
@@ -63,12 +64,12 @@ Rounding each duration on its own would let errors pile up across a sentence. Ro
   title="Audio and transcript go into the MMS aligner, which gives letter spans; the spans become mel-frame durations; the length regulator repeats each letter's vector by its duration."
 >
   Durations are the bridge between the aligner and the acoustic model. They are also a free quality
-  check: a letter held for more than 1.4 s is a broken alignment.
+  check: a letter held for more than 1.4 s triggers our filter for review.
 </CourseFigure>
 
 That last check is in the prep step too: any clip with a symbol longer than 120 frames (120 × 256 / 22,050 = 1.39 s) is dropped. On our 571-clip subset it removed nothing that the confidence filter had not already removed.
 
-## What does the length regulator do?
+## Length Regulation
 
 It repeats each symbol's hidden vector by that symbol's duration. After it, the sequence has one vector per output frame, and the decoder never has to decide where it is in the text.
 
@@ -81,17 +82,17 @@ durs = durs.masked_fill(pad, 0)
 h, lens = self.regulate(x, durs)
 ```
 
-The predictor outputs `log(1 + frames)`, so the code inverts that, multiplies by `pace`, rounds, and clamps. `pace` is a free speaking-rate control: 1.2 stretches every symbol by about 20% (after rounding and the one-frame minimum). The clamp guarantees each real symbol appears in the output at least once. Padding is set back to zero.
+The predictor outputs `log(1 + frames)`, so the code inverts that, multiplies by `pace`, rounds, and clamps. `pace` is a free speaking-rate control: 1.2 stretches every symbol by about 20% (after rounding and the one-frame minimum). The clamp gives each real symbol at least one slot in the expanded hidden sequence; it does not guarantee an audible sound. Padding is set back to zero.
 
-## Why do parallel TTS models not skip or repeat words?
+## Coverage Limits
 
-Because output length is a sum of per-symbol durations, not the result of attention finding its way along the text. There is no step at which the model can lose its place.
+Output length is a sum of symbol durations. That removes an attention step that can skip over text, but incorrect durations or a weak decoder can still make words inaudible.
 
 The FastSpeech authors report that their approach "nearly eliminates the problem of word skipping and repeating in particularly hard cases" compared with the autoregressive baseline. Our three probe sentences point the same way in miniature: at the checkpoint we kept, Whisper returned the same number of words as the input on every probe, and every error was a substitution, such as "pull" for "call". Three sentences is a small sample. The eval harness in unit 6 runs a larger set.
 
 Two failures remain. The model can say the right number of words wrong, because a substituted sound costs no frames. And it can only speak what reaches it: our `encode` keeps letters, apostrophe and space, so digits vanish before the model sees them. That belongs to [text normalisation](/learn/100x/tts/text-normalisation-tts), and it shows up again in [hallucinations](/learn/100x/tts/tts-hallucinations).
 
-## How well does a duration predictor learn?
+## Duration Loss
 
 Quickly. In our run the duration loss (MSE on `log(1 + frames)`) fell from 1.39 at step 50 to 0.108 by step 550 and 0.042 by step 1,650, while the mel loss was still moving.
 
@@ -100,7 +101,12 @@ The predictor is two small convolutions over the encoder output. It learns an av
 <Practice label="Check your durations">
   Before training anything, sum each clip's durations and compare against its mel length, then list
   the longest single-symbol duration per clip. A mismatch in the first check is a hop or sample rate
-  bug. An outlier in the second is a bad alignment you do not want to train on.
+  bug. An outlier in the second is a reason to inspect the alignment and recording.
 </Practice>
+
+<Checkpoint
+  question="Does one frame per symbol guarantee every word is audible?"
+  answer="No. It preserves a slot in the expanded representation. Bad durations or decoding can still produce unclear, missing or incorrect audible content."
+/>
 
 Next: [train the model](/learn/100x/tts/train-tts-model-from-scratch) that uses these durations, and hear it at four checkpoints.

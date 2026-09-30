@@ -1,0 +1,54 @@
+---
+lessonId: stt-lesson-015
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 15
+unit: 4
+unitTitle: "Training Experiments"
+title: "Error Inspection"
+navTitle: "Error Inspection"
+summary: "Listen to actual held-out examples and compare their references with saved model outputs."
+seoTitle: "Error Inspection for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+The retained model returns some correct digit strings and some incorrect ones. Listen before looking at the prediction, then compare both with the reference. Fluency is not available as a distraction in this tiny vocabulary: each extra or missing digit is visible.
+
+## Listen First
+
+<AudioSample src="/audio/stt/example-0.wav" label="Evaluation example 1">Assembled from the held-out speaker's source recordings. Predict the digit string before reading the table.</AudioSample>
+<AudioSample src="/audio/stt/example-1.wav" label="Evaluation example 2">The pauses were inserted by the data generator; these are not naturally spoken continuous identifiers.</AudioSample>
+<AudioSample src="/audio/stt/example-2.wav" label="Evaluation example 3">Audio attribution and exact source filenames are included in the lab download.</AudioSample>
+
+<TrainingEvidence kind="examples" />
+
+## Classify Failures
+
+For each mismatch, record whether a digit was substituted, deleted or inserted. Then inspect sequence length, repeated digits and the source audio. A label such as “bad audio” is not enough to suggest an intervention.
+
+```python
+import json
+results = json.load(open('my-run/results.json'))
+for row in results['predictions']:
+    if row['reference'] != row['hypothesis']:
+        print(row['files'], row['reference'], row['hypothesis'])
+```
+
+An empty hypothesis stays visible. A wrong string of the expected length is also a failure; length validation cannot recover which digit was spoken.
+
+## Keep Comparisons
+
+When you change decoding, save both old and new hypotheses for the same examples. Look for regressions as well as fixes. Reviewing only newly correct cases would bias the narrative.
+
+<Checkpoint question="One difficult example improves after a decoder change. Is that enough to keep it?" answer="It is a reason to investigate. Compare the fixed evaluation set and inspect new errors before claiming an improvement. Preserve the original configuration so the comparison can be rerun." />
+
+Move to [Word Errors](/learn/100x/stt/word-errors) to compute edit rate, then [Entity Accuracy](/learn/100x/stt/entity-accuracy) to score entire strings. The original [STT component guide](/learn/components/speech-to-text) connects those distinctions to business actions.

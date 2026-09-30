@@ -1,11 +1,12 @@
 ---
+lessonId: livekit-lesson-014
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 14
 unit: 4
-unitTitle: 'Load testing voice agents'
-title: 'How to load test a voice agent with real calls and real audio'
-navTitle: 'Load testing a voice agent'
+unitTitle: 'Load Testing'
+title: 'Voice Load Testing'
+navTitle: 'Voice Load Testing'
 summary: 'A voice load test has to place real calls, hold them for minutes, and prove audio flowed both ways. The rig, a three-part pass rule, and what to record for every call.'
 seoTitle: 'How to Load Test a Voice Agent With Real Calls | Mahimai'
 keywords:
@@ -18,12 +19,14 @@ faq:
   - q: 'How do you load test a voice agent?'
     a: 'Place real SIP calls with real RTP audio through the same path your callers use, hold each call for a fixed duration, and verify per call that audio arrived. Ramp to a target concurrency, hold, then step again, while a collector samples the fleet side.'
   - q: 'What counts as a passing call in a voice load test?'
-    a: 'Decide it before the run: the call was established, held for the full planned duration, and received a nonzero number of RTP packets. Without the last clause, a call with no audio passes.'
+    a: 'Decide it before the run: the call was established, held for the full planned duration, and received expected media. Nonzero packets alone do not prove speech was audible or correct; add decoded-audio and response checks.'
   - q: 'Is a signalling-only SIP load test enough?'
-    a: 'No. Signalling-only tests validate nothing that matters for a voice agent: every catastrophic failure we hit happened on calls whose signalling was perfect.'
+    a: 'No. Signalling-only tests validate setup and teardown, but not media quality for a voice agent: every catastrophic failure we hit happened on calls whose signalling was perfect.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import DiagramEmbed from '../../../components/course/figures/DiagramEmbed.astro';
 
@@ -31,13 +34,11 @@ A web load test fires thousands of requests and counts the successful responses.
 
 A call can be accepted, held for five minutes, and carry audio in one direction only, and there is no status code anywhere that says so. A voice load test has to place hundreds of stateful, bidirectional calls, hold them for minutes, and prove that audio actually flowed both ways. That difference in method decides whether your test can see anything at all. (For what a test that skips it looks like, [silent failures](/learn/100x/livekit/voice-silent-failures) opens with one.)
 
-This page gives you the rig: what the generator places, what a passing call means, what to record for every call, how to ramp, and what the fleet side has to measure while the calls run.
-
-## What the load generator places
+## Call Generation
 
 The generator places real calls: SIP INVITEs through your actual trunk path (or straight at your SIP service), with real RTP carrying scripted audio on a loop.
 
-Signalling-only tests validate nothing that matters. Every catastrophic failure in these lessons happened on calls whose signalling was perfect: [one-way audio from NAT](/learn/100x/livekit/livekit-one-way-audio-nat), [ports exhausted past the configured range](/learn/100x/livekit/livekit-port-exhaustion), and calls that went quiet with nothing in any log.
+Signalling-only tests validate setup and teardown, but not media quality. Every catastrophic failure in these lessons happened on calls whose signalling was perfect: [one-way audio from NAT](/learn/100x/livekit/livekit-one-way-audio-nat), [ports exhausted past the configured range](/learn/100x/livekit/livekit-port-exhaustion), and calls that went quiet with nothing in any log.
 
 SIP load tools do this job. [SIPp](https://sipp.readthedocs.io/en/latest/), for example, runs scripted SIP scenarios, [streams RTP or replays captured audio](https://sipp.readthedocs.io/en/latest/media.html) on each call, and sets the call rate with `-r` (see [traffic control](https://sipp.readthedocs.io/en/latest/controlling.html)). Whatever tool you use, check three things before you trust it:
 
@@ -45,17 +46,17 @@ SIP load tools do this job. [SIPp](https://sipp.readthedocs.io/en/latest/), for 
 2. It counts RTP packets received per call, separately from packets sent.
 3. It lets you fix the hold time of each call.
 
-## What counts as a passing call
+## Pass Criteria
 
 Decide before the run what a passing call is. We use three conditions, and a call passes only if all three hold:
 
 1. **Established.** The call was answered.
 2. **Held.** It stayed up for the full planned duration.
-3. **Heard.** It received a nonzero number of RTP packets.
+3. **Media received.** It received the expected audio stream, with nonzero RTP as an initial transport gate.
 
-That last clause looks paranoid. It is the entire reason the method works. Leave it out and a call that connected, held for five minutes and carried nothing back counts as a pass. [Silent failures](/learn/100x/livekit/voice-silent-failures) opens with exactly what happens then.
+Nonzero RTP is necessary for this scripted test, but not sufficient: decode audio, check speech content and response timing, and record task success separately. Leave it out and a call that connected, held for five minutes and carried nothing back counts as a pass. [Silent failures](/learn/100x/livekit/voice-silent-failures) opens with exactly what happens then.
 
-## What to record for every call
+## Call Records
 
 Record one row per call from the generator's side. Aggregates hide the calls you care about, so keep the rows and compute ratios later.
 
@@ -70,19 +71,19 @@ Record one row per call from the generator's side. Aggregates hide the calls you
 
 A run then reduces to a question you can answer from the rows: how many calls failed, which condition did each one fail, and when did they start?
 
-## Hold time, ramp and hold
+## Load Stages
 
-Fix the hold time. With every call the same length, concurrency becomes a controllable function of arrival rate, and every derived number stays interpretable:
+Fix the hold time for a controlled experiment. In steady state, using answered calls and connected duration:
 
 ```text
-concurrency = calls per second x average call duration
+average active calls = answered calls per second x average connected duration
 ```
 
 For example, holding 500 concurrent calls of 5 minutes each needs an arrival rate of 1.67 calls per second. [Concurrency vs calls per second](/learn/100x/livekit/concurrency-vs-cps) explains why that rate is its own capacity axis.
 
 Then ramp in steps. Step to a target, hold long enough for pools to warm and buffers to fill, then step again. The interesting data is at the step where things bend, well before the step where they break.
 
-## The fleet-side collector
+## Fleet Metrics
 
 The generator sees the caller's view. A collector samples the fleet's view on every node: media ports in use, worker PSS, open file descriptors, and calls per node.
 
@@ -96,10 +97,15 @@ Sample them on a fixed interval through the whole run, tagged with the active ca
   the two disagree.
 </DiagramEmbed>
 
-## Aim the generator at the real path
+## Network Coverage
 
 Aim the generator at the path your callers use, through the carrier trunk where cost allows. NAT, firewalls and codec negotiation are half of what you are testing.
 
 A generator inside the VPC talking to private addresses validates a network your callers will never use. It skips the public address, the security group and the carrier's media path, which is exactly where one-way audio from NAT ([unit 2](/learn/100x/livekit#unit-2)) lives.
 
 Next: [concurrency vs calls per second](/learn/100x/livekit/concurrency-vs-cps), and the rate failure that hid inside a concurrency test.
+
+<Checkpoint
+  question="Does receiving one RTP packet prove that a voice agent answered correctly?"
+  answer="No. Decode the returned media and verify expected speech, timing and task behaviour. Packet counters catch transport defects but are only one gate."
+/>

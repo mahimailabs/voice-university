@@ -1,0 +1,43 @@
+{
+  "course": "stt",
+  "unit": 6,
+  "version": "1",
+  "questions": [
+    {
+      "id": "stt-6-1",
+      "prompt": "What does a wider beam primarily change?",
+      "options": [
+        "The number of decoding candidates retained",
+        "The sample rate of the recording",
+        "The encoder training set"
+      ],
+      "correct": 0,
+      "explanation": "Beam search explores more hypotheses; it does not itself retrain the acoustic model.",
+      "lesson": "/learn/100x/stt/beam-search"
+    },
+    {
+      "id": "stt-6-2",
+      "prompt": "A rare part name is boosted. What regression should you check?",
+      "options": [
+        "Only whether the boosted name appears more often",
+        "Whether the output file is larger",
+        "False matches on speech that does not contain the name"
+      ],
+      "correct": 2,
+      "explanation": "Biasing can improve recall while creating false positives. Test both in-vocabulary and confusable negative examples.",
+      "lesson": "/learn/100x/stt/vocabulary-biasing"
+    },
+    {
+      "id": "stt-6-3",
+      "prompt": "How should you judge adaptation to workshop speech?",
+      "options": [
+        "Choose the largest model by default",
+        "Compare on held-out workshop audio and a general-domain set",
+        "Score only the fine-tuning examples"
+      ],
+      "correct": 1,
+      "explanation": "Held-out target-domain data measures the intended improvement; a general set exposes regressions.",
+      "lesson": "/learn/100x/stt/domain-adaptation"
+    }
+  ]
+}

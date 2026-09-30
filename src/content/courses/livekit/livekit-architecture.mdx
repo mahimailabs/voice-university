@@ -1,12 +1,13 @@
 ---
+lessonId: livekit-lesson-001
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 1
 unit: 1
-unitTitle: 'Foundations'
-title: 'LiveKit architecture explained: SFU, SIP, workers, Redis, TURN'
-navTitle: 'LiveKit architecture'
-summary: 'A call can connect, show green on every dashboard, and carry no audio. LiveKit is five processes on two planes. Learn which one owns the symptom before you debug.'
+unitTitle: 'LiveKit Foundations'
+title: 'LiveKit Architecture'
+navTitle: 'LiveKit Architecture'
+summary: 'A call can connect, show green on every dashboard, and carry no audio. Separate signalling from media, then identify the component that owns the failure. Learn which one owns the symptom before you debug.'
 seoTitle: 'LiveKit Architecture: SFU, SIP, Workers, Redis, TURN | Mahimai'
 keywords:
   - 'LiveKit architecture'
@@ -18,14 +19,16 @@ keywords:
 proficiency: 'Beginner'
 faq:
   - q: 'What is a LiveKit SFU?'
-    a: "The LiveKit server is a Selective Forwarding Unit (SFU): it receives each participant's audio once and forwards it to the others without mixing or transcoding. Every RTP packet of every call passes through it, so its ceilings (UDP ports, bandwidth, CPU) set your capacity."
+    a: "The LiveKit server is a Selective Forwarding Unit (SFU): it receives each participant's audio once and forwards it to the others without mixing or transcoding. For participants in that room, the SFU forwards media. Capacity depends on transport configuration, participants, bandwidth and CPU."
   - q: 'Does LiveKit need Redis?'
-    a: 'A single-node development server does not. Any multi-node deployment does: Redis holds room state and routes messages between nodes, and the SIP service and agent workers use it to find the cluster. In production it is required.'
+    a: 'A single-node development server does not. Multi-node self-hosting uses Redis for coordination. The SIP service also uses Redis; agent workers connect to LiveKit over WebSocket rather than accessing Redis directly.'
   - q: 'What does the LiveKit SIP service do?'
     a: 'It is a separate process that speaks SIP and RTP to telephony carriers on one side and joins LiveKit rooms as a participant on the other. It is the bridge between a phone call and a room, with its own addressing, port ranges, and failure modes.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 import LiveKitPlanesEmbed from '../../../components/course/figures/LiveKitPlanesEmbed.astro';
@@ -34,11 +37,11 @@ A caller dials in. The trunk answers, the room exists, your agent has joined, an
 
 The caller hears nothing.
 
-Where do you look first? LiveKit is one product and five processes, and each one fails in its own way. By the end of this page you will know what each process does, which of the two planes it lives on, and which one to suspect for the three symptoms you will actually get paged for.
+Start with the media path. A room and a connected agent prove that signalling worked; they do not prove that speech reached either participant.
 
-## What are the five parts of LiveKit?
+## System Components
 
-A production LiveKit deployment is five cooperating processes: the server (an SFU), the SIP service, your agent workers, Redis, and TURN. On a laptop you only see two of them, which is why the first production deploy surprises people.
+This self-hosted telephony stack has five roles: SFU, SIP bridge, agent workers, Redis and TURN. They are not necessarily five processes: TURN can run inside the SFU, while SIP is optional for browser-only calls.
 
 | Process       | What it does                                                   | Runs on your laptop?        |
 | ------------- | -------------------------------------------------------------- | --------------------------- |
@@ -50,44 +53,44 @@ A production LiveKit deployment is five cooperating processes: the server (an SF
 
 Every later lesson is about one row of that table.
 
-## The SFU is where capacity runs out
+## Media Forwarding
 
 The server is a Selective Forwarding Unit. It takes each participant's audio once and forwards it to everyone who should hear it, with no mixing and no transcoding in the common path.
 
-That design is why it is cheap per call, and also why it matters so much: every RTP packet of every call passes through here. Capacity is won or lost on this machine.
+The SFU forwards subscribed tracks; it does not run your STT or LLM. Measure its resource use separately from the workers and model providers.
 
-You would expect CPU to be the first ceiling. It is UDP ports. A voice call holds roughly 18 of them, and when the configured range runs out, new calls still connect and simply carry no audio. [Unit 5](/learn/100x/livekit#unit-5) is that whole story, starting with [why media servers run out of ports before CPU](/learn/100x/livekit/livekit-port-exhaustion).
+Port ranges can limit a deployment, but ports per call are not a LiveKit constant. UDP multiplexing changes the allocation model. The saved 18.3-per-call counter in this course needs its collection method verified before being used as a port budget. [Unit 5](/learn/100x/livekit#unit-5) is that whole story, starting with [why media servers run out of ports before CPU](/learn/100x/livekit/livekit-port-exhaustion).
 
-## The SIP service speaks telephony for you
+## SIP Bridge
 
 The SIP service is a separate process that talks SIP and RTP to telephony carriers on one side and joins rooms as an ordinary participant on the other. A phone caller shows up in your room as a participant it created.
 
-It has its own addressing, its own port ranges, and its own failure modes. One of those cost us three days. Carrier audio needs `symmetric_rtp: true`, because NAT rewrites the source port and the address in the SDP is not where the caller can actually be reached. The full diagnosis is in [the one-way audio lesson](/learn/100x/livekit/livekit-one-way-audio-nat).
+It has its own addressing, its own port ranges, and its own failure modes. One of those cost us three days. For the NAT path in our case study, `symmetric_rtp: true` made replies follow the observed media source. Diagnose the packet path before treating it as a universal carrier setting. The full diagnosis is in [the one-way audio lesson](/learn/100x/livekit/livekit-one-way-audio-nat).
 
-## Agent workers, Redis and TURN
+## Worker Coordination
 
 These three are easy to forget until one of them is missing.
 
 **Agent workers** are your code. Python or Node processes register with the server, take a job when a room needs an agent, and run one process per active call. Everything AI lives here: STT, LLM, TTS and [turn detection](/learn/components/turn-detection). LiveKit's own docs describe [how agents connect and receive jobs](https://docs.livekit.io/agents/); [unit 3](/learn/100x/livekit#unit-3) covers what that process model does under load.
 
-**Redis** is coordination. Multi-node deployments use it for room state and for routing messages between nodes, and the SIP service and workers use it to find the cluster. A single-node laptop hides it completely. Production requires it, and [the multi-node lesson](/learn/100x/livekit/livekit-multi-node-redis) shows the wiring.
+**Redis** is coordination. Multi-node deployments use it for room state and for routing messages between nodes, and the SIP service uses its message bus. Agent workers register over WebSocket with LiveKit, not Redis. Multi-node self-hosting requires Redis, and [the multi-node lesson](/learn/100x/livekit/livekit-multi-node-redis) shows the wiring.
 
-**TURN** is the relay for clients whose network blocks a direct WebRTC path. It can be embedded in the server or run alongside it, and in practice you cannot skip it, because some fraction of real users are always behind a hostile NAT.
+**TURN** is the relay for clients whose network blocks a direct WebRTC path. It can be embedded in the server or run alongside it, and is useful when direct connectivity cannot cover your users’ networks.
 
-## Two planes: signalling and media
+## Control and Media
 
 Every call runs on two planes at once. Signalling and coordination go through the server and Redis, while audio goes directly between clients, the SFU, and the SIP service.
 
 <LiveKitPlanesEmbed />
 
-The split matters because the planes fail independently. The ports each one needs are listed in LiveKit's [ports and firewall reference](https://docs.livekit.io/transport/self-hosting/ports-firewall/): signalling is one TCP port you can put behind a load balancer, while media is a UDP range that has to reach the node directly.
+The split matters because the planes fail independently. The ports each one needs are listed in LiveKit's [ports and firewall reference](https://docs.livekit.io/transport/self-hosting/ports-firewall/): signalling can use a TLS reverse proxy, while media must reach the advertised candidates. This course uses range mode in its initial setup; UDP mux is another option.
 
 <Pull>
   A call can be perfectly healthy on the signalling plane and completely silent on the media plane,
-  and every dashboard will still read green.
+  and signalling-only dashboards can still read green.
 </Pull>
 
-## Which part owns the symptom?
+## Fault Isolation
 
 Triage by plane first, then by process. Three symptoms cover most pages:
 
@@ -97,6 +100,11 @@ Triage by plane first, then by process. Three symptoms cover most pages:
 | Connected, but silent or one-way   | Media      | Ports, firewall, NAT, TURN | [Calls that carry no audio](/learn/100x/livekit/voice-silent-failures) |
 | Connected, audio flows, agent mute | Worker     | Agent worker process       | [Worker lifecycle](/learn/100x/livekit/livekit-agent-worker-lifecycle) |
 
-The middle row is the dangerous one. No counter reports it, so you only find it if you go looking. Knowing which plane owns a symptom saves the hour you would otherwise spend on the wrong one.
+The middle row needs media telemetry. Signalling counters alone can miss it. Knowing which plane owns a symptom saves the hour you would otherwise spend on the wrong one.
 
 Next: [the four objects every LiveKit API call speaks](/learn/100x/livekit/livekit-rooms-participants-tracks), and the one-to-one mapping that tells you when something has leaked.
+
+<Checkpoint
+  question="A room exists, but neither side hears audio. Does that prove the SFU is healthy?"
+  answer="No. Room creation checks signalling. Check published tracks, subscriptions, selected ICE paths and media counters separately."
+/>

@@ -1,0 +1,19 @@
+diagram theme: light background: #fcfcfc text: (color: #0a0a0a)
+default node text: (size: 18) fill: #fcfcfc border: #95959d
+default edge line: #55555c line: (path: curved)
+style dim text: (color: #55555c)
+node cascade "Cascade" contents: (align: center)
+node cascade.stt "STT" icon: cube
+node cascade.llm "LLM" icon: cube below cascade.stt
+node cascade.tts "TTS" icon: cube below cascade.llm
+edge cascade.stt -> cascade.llm "text" (color: #55555c)
+edge cascade.llm -> cascade.tts "text" (color: #55555c)
+node native "Native audio" contents: (align: center) right of cascade
+node native.model "Audio model" icon: cubes
+node native.in "Audio in" shape: none above native.model
+node native.out "Audio out" shape: none below native.model
+edge native.in -> native.model
+edge native.model -> native.out
+node guard "Application checks / before business actions" icon: desktop below cascade and native
+edge cascade.llm -> guard "tool proposal" (size: 16) from: left to: left
+edge native.model -> guard "tool proposal" (size: 16) from: right to: right

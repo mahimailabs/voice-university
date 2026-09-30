@@ -1,11 +1,12 @@
 ---
+lessonId: livekit-lesson-008
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 8
 unit: 2
-unitTitle: 'Self-hosting the stack'
-title: 'LiveKit one-way audio: NAT, symmetric RTP, and the fix that is not the IP'
-navTitle: 'One-way audio and NAT'
+unitTitle: 'Self-Hosted Stack'
+title: 'NAT Troubleshooting'
+navTitle: 'NAT Troubleshooting'
 summary: 'Calls connected and the caller heard nothing. We fixed the advertised IP and the audio stayed one way. Three days later: NAT had rewritten the port too. The one-line fix.'
 seoTitle: 'LiveKit One-Way Audio: NAT, Symmetric RTP and the Fix | Mahimai'
 keywords:
@@ -16,13 +17,15 @@ keywords:
   - 'symmetric_rtp'
 proficiency: 'Intermediate'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 faq:
   - q: 'Why do LiveKit SIP calls connect with one-way audio?'
-    a: "Almost always NAT. First check that the SIP service advertises its public IP in SDP (use_external_ip: true). If audio is still one way, the caller's NAT has rewritten the source port as well, and the service is replying to the port in the caller's SDP instead of where the packets came from."
+    a: "NAT is one possible cause, alongside firewall rules, codec negotiation and track subscriptions. First check that the SIP service advertises its public IP in SDP (use_external_ip: true). If captures show a different source port, and the service is replying to the port in the caller's SDP instead of where the packets came from."
   - q: 'What does symmetric_rtp do in the LiveKit SIP config?'
     a: "It makes the SIP service send media back to the address and port the caller's RTP actually arrived from, ignoring what the caller's SDP claimed. That survives NAT, which rewrites the source port in a way the caller cannot see or advertise."
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 import Practice from '../../../components/course/Practice.astro';
@@ -30,11 +33,11 @@ import DiagramEmbed from '../../../components/course/figures/DiagramEmbed.astro'
 
 Calls connected. Signalling was clean. The caller sent RTP and received nothing.
 
-It took us three days to find. With what follows, it should take you ten minutes.
+The original diagnosis took three days. Comparing SDP with observed RTP made the missing piece visible.
 
 You'll see why fixing the advertised address is necessary and still not enough, what NAT does to the source port, how to confirm it in a packet capture, and the one config line that fixes it.
 
-## The first fix was right, and it changed nothing
+## Advertised Addresses
 
 The SDP answer advertised a private address, so the cause looked clear: the media server was telling the caller to send audio to an address the caller could not reach. Fix the advertised address, fix the call.
 
@@ -42,7 +45,7 @@ On the LiveKit SIP service, that part of the fix is `use_external_ip: true` (or 
 
 We fixed the address. The audio stayed one way.
 
-## What the SDP cannot know
+## NAT Translation
 
 An SDP answer says: send media to this address and this port. The caller obeys. The packets arrive having passed through NAT, which rewrote the source address and, critically, the source port.
 
@@ -54,7 +57,7 @@ Here is what that looks like with example addresses:
 | --------------------------------- | -------------------- |
 | Caller's SDP says "send to me at" | `10.0.4.17:16384`    |
 | RTP actually arrives from         | `198.51.100.23:9012` |
-| Server replies (default)          | `10.0.4.17:16384`    |
+| Server replies (case study)       | `10.0.4.17:16384`    |
 | Server replies (symmetric RTP)    | `198.51.100.23:9012` |
 
 Correcting the advertised address fixes half the problem and leaves the other half, because NAT rewrites the port too. There is no address you can put in an SDP that survives a translation the sender cannot see.
@@ -67,7 +70,7 @@ Correcting the advertised address fixes half the problem and leaves the other ha
   packets came from brings it back.
 </DiagramEmbed>
 
-## The one-line fix: symmetric RTP
+## Symmetric RTP
 
 Tell the SIP service to reply to where the packets actually came from:
 
@@ -76,11 +79,11 @@ Tell the SIP service to reply to where the packets actually came from:
 symmetric_rtp: true
 ```
 
-With it set, the service sends RTP back to the observed source address and port of the caller's media, whatever the SDP said. Asterisk, FreeSWITCH and every session border controller do the same thing under different names, because it is the mechanism that makes carrier traffic work at all.
+With it set, the service sends RTP back to the observed source address and port of the caller's media, whatever the SDP said. Use this only with the expected, authenticated carrier media path. The setting is present in the [LiveKit SIP configuration source](https://github.com/livekit/sip/blob/main/pkg/config/config.go); it is not a substitute for trunk authentication or firewall policy.
 
 The name comes from [RFC 4961](https://www.rfc-editor.org/rfc/rfc4961), which defines symmetric RTP as sending and receiving a stream on the same address and port. An endpoint that behaves that way is one you can safely reply to at its observed source.
 
-## How to confirm it in a packet capture
+## Packet Inspection
 
 Put the SDP and the RTP side by side. On the SIP host, capture while you place a test call:
 
@@ -93,11 +96,11 @@ Open the file in Wireshark and compare two things:
 1. The `c=` address and `m=audio` port in the caller's SDP.
 2. The source address and port of the RTP packets that arrive from the caller.
 
-If they differ, NAT is rewriting them, and replying to the SDP values will send your audio nowhere. If the service's outbound RTP goes to the SDP values while inbound RTP arrives from somewhere else, you are looking at this bug.
+If they differ, investigate NAT or an intermediate media relay, and replying to the SDP values will send your audio nowhere. If the service's outbound RTP goes to the SDP values while inbound RTP arrives from somewhere else, you are looking at this bug.
 
 <Pull>
   Why it took three days: the failure has no error. The call establishes, holds its full duration,
-  and tears down cleanly. Every counter on the signalling path reads healthy. And we had a plausible
+  and tears down cleanly. The signalling counters we inspected read healthy. And we had a plausible
   wrong answer early: the advertised address genuinely was wrong, and fixing it genuinely was
   necessary. It just was not sufficient. A partially correct diagnosis is harder to abandon than a
   clearly wrong one.
@@ -109,3 +112,8 @@ The same shape (the call is up, the audio is gone, no log line anywhere) comes b
   When a fix is clearly correct and changes nothing, stop asking whether it was correct and ask what
   else is true at the same time. That question, asked on day one, is worth three days.
 </Practice>
+
+<Checkpoint
+  question="The SDP address is correct. Can NAT still break return audio?"
+  answer="Yes. Compare the offered receive port with the observed RTP source port, then inspect where replies actually go. A correct IP alone does not prove the media path."
+/>

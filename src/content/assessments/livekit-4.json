@@ -1,0 +1,43 @@
+{
+  "course": "livekit",
+  "unit": 4,
+  "version": "1",
+  "questions": [
+    {
+      "id": "livekit-4-1",
+      "prompt": "At steady state, 500 calls average 30 seconds. What answered-call rate sustains them?",
+      "options": [
+        "About 1.67 calls per second",
+        "500 calls per second",
+        "About 16.7 calls per second"
+      ],
+      "correct": 2,
+      "explanation": "Answered CPS is concurrency divided by average connected duration: 500 / 30.",
+      "lesson": "/learn/100x/livekit/concurrency-vs-cps"
+    },
+    {
+      "id": "livekit-4-2",
+      "prompt": "Why align generator and server measurements to the same time windows?",
+      "options": [
+        "To remove all failed calls",
+        "To compare the same workload interval",
+        "To increase the number of calls artificially"
+      ],
+      "correct": 1,
+      "explanation": "Misaligned windows can compare a ramp on one system with steady state on another.",
+      "lesson": "/learn/100x/livekit/load-test-time-bucketing"
+    },
+    {
+      "id": "livekit-4-3",
+      "prompt": "A report says every call succeeded, but RTP counters are zero. What is the correct response?",
+      "options": [
+        "Inspect whether success checked signalling only",
+        "Accept the headline without further checks",
+        "Raise the worker limit without checking media"
+      ],
+      "correct": 0,
+      "explanation": "A signalling success does not prove media flowed. Validate the report\u2019s success definition against per-call media evidence.",
+      "lesson": "/learn/100x/livekit/debugging-load-test-reports"
+    }
+  ]
+}

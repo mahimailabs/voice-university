@@ -1,11 +1,12 @@
 ---
+lessonId: livekit-lesson-015
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 15
 unit: 4
-unitTitle: 'Load testing voice agents'
-title: 'Concurrency vs calls per second: two different voice capacity tests'
-navTitle: 'Concurrency vs calls per second'
+unitTitle: 'Load Testing'
+title: 'Concurrency and CPS'
+navTitle: 'Concurrency and CPS'
 summary: 'Months of load tests at 150 to 600 concurrent calls, and nobody could say what our calls-per-second ceiling was. Why the two numbers stress different layers.'
 seoTitle: 'Concurrency vs Calls per Second in Voice Capacity | Mahimai'
 keywords:
@@ -22,31 +23,34 @@ faq:
   - q: 'How do you load test calls per second?'
     a: 'Hold concurrency flat and push the arrival rate up in steps, shortening the hold time so that rate times duration stays constant. The step where call setup starts timing out is your CPS ceiling at that concurrency.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
 import Practice from '../../../components/course/Practice.astro';
+import LiveKitTrafficLab from '../../../components/islands/LiveKitTrafficLab';
 
 Every load test on the project held a target concurrency: 150, 300, 500, 600. Months of runs, tens of thousands of calls, a capacity model fitted to per-node measurements.
 
 Then someone asked what our calls-per-second (CPS) ceiling was. We did not know, and none of the runs could tell us.
 
-By the end of this page you'll know why concurrency and CPS are separate capacity axes, which parts of a voice stack each one loads, and how to design a run that finds the CPS ceiling on purpose.
+## Traffic Relationship
 
-## How concurrency and calls per second relate
-
-Concurrency is arrival rate multiplied by average call duration. Fix any two and the third follows:
+For a stable workload, average active calls equal the answered-call rate times average connected duration. This is a steady-state relationship, not an instantaneous burst formula:
 
 ```text
-concurrency = calls per second x average call duration
+average active calls = answered calls per second x average connected duration
 ```
 
 This is [Little's law](https://en.wikipedia.org/wiki/Little%27s_law) applied to calls, and it hides a gap. Our harness derived the arrival rate from the concurrency and hold time we asked for. Rate was never a dial.
 
-That is good design for repeatable capacity runs, and it meant we had covered a range of rates only by accident: 0.33 CPS on the soak up to 2.0 CPS on the burst. What we had never done is hold concurrency flat and push the rate up, which is the only way to find where call setup breaks.
+That is good design for repeatable capacity runs, and it meant we had covered a range of rates only by accident: 0.33 CPS on the soak up to 2.0 CPS on the burst. What we had never done is hold concurrency flat and push the rate up, which helps isolate setup pressure.
 
-## Which layers each number stresses
+<LiveKitTrafficLab client:load />
+
+## Capacity Axes
 
 Calls per second stresses setup: signalling, transaction state, room creation, agent dispatch, worker pool spawn. Concurrency stresses carrying: media relay, ports, bandwidth, steady CPU.
 
@@ -67,7 +71,7 @@ Identical media load. Ten times the setup work. A fleet that holds 500 five-minu
   is marked because that is where our rate failure hid.
 </CourseFigure>
 
-## Where it bit us: a rate failure at 50 concurrent
+## Setup Bottlenecks
 
 The agent tier failed at 50 concurrent calls, and the failure was not media. The generator timed out waiting for the answer, because the worker pool was spawning processes and could not do it fast enough.
 
@@ -75,7 +79,7 @@ It was an arrival-rate failure wearing a concurrency costume. We found it only b
 
 Worker pool spawn is a setup cost. The Python agents framework keeps some processes warm ahead of demand, controlled by `num_idle_processes` (see the [server options](https://docs.livekit.io/agents/server/options/) docs), which is one of the first knobs to look at when setup is what times out.
 
-## How to test the CPS ceiling on purpose
+## CPS Experiment
 
 Hold concurrency flat and raise the arrival rate in steps. To keep concurrency constant, shorten the hold time as the rate goes up, so rate times duration stays the same.
 
@@ -88,7 +92,7 @@ Here is an example step plan for 500 concurrent. The first and last rows are the
 | 3    | 10         | 50 s               | 500         |
 | 4    | 16.7       | 30 s               | 500         |
 
-Hold each step long enough to reach steady state before moving on, and watch the setup side while you do: time from INVITE to answer, answer timeouts, dispatch latency and worker spawn. The step where setup starts to fail is your CPS ceiling at 500 concurrent. Media metrics should stay flat across every step. If they move, you have changed the carrying load by accident.
+Hold each step long enough to reach steady state before moving on, and watch the setup side while you do: time from INVITE to answer, answer timeouts, dispatch latency and worker spawn. The step where setup starts to fail is your CPS ceiling at 500 concurrent. Keep the audio duty cycle and model behaviour comparable. Shorter calls can change greeting frequency and speech activity, so inspect those before attributing a change solely to setup.
 
 The rig itself (real calls, per-call RTP counts, a fleet-side collector) is the one from [how to load test a voice agent](/learn/100x/livekit/voice-agent-load-testing). Both axes then feed the [capacity model](/learn/100x/livekit/voice-capacity-model), which keeps setup and carrying as separate columns.
 
@@ -100,3 +104,8 @@ The rig itself (real calls, per-call RTP counts, a fleet-side collector) is the 
 </Practice>
 
 Next: [per-call resource accounting](/learn/100x/livekit/per-call-resource-accounting), the method that turns a load test's raw rows into slopes you can size from.
+
+<Checkpoint
+  question="What arrival rate sustains 500 calls averaging 30 seconds?"
+  answer="About 16.7 answered calls per second in steady state. Rejected calls, setup time and bursty arrivals need their own measurements."
+/>

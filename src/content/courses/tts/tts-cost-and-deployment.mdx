@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-028
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 28
 unit: 7
-unitTitle: 'Adapt and ship'
-title: 'TTS cost per minute and deployment: a formula from measured RTF'
-navTitle: 'Cost and deployment'
+unitTitle: 'Adaptation and Serving'
+title: 'Deployment Costs'
+navTitle: 'Deployment Costs'
 summary: 'At a real-time factor of 0.052, one busy container-hour yields about 1,150 audio minutes. Turn RTF into cost per minute, price in utilisation, clear the licence gate.'
 seoTitle: 'TTS Cost per Minute and Deployment | Mahimai'
 keywords:
@@ -23,16 +24,16 @@ faq:
   - q: 'Can you deploy a TTS model commercially if the weights are open?'
     a: 'Only after checking every licence in the stack separately: the training data, the model weights and the runtime. Piper is a real example: its voices repository is MIT, while the piper-tts runtime package is GPL-3.0-or-later. Under common readings of the GPL, an on-premises delivery to a client can count as distribution, so the runtime licence may apply in a way an API call does not; check with counsel.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Practice from '../../../components/course/Practice.astro';
 
-At a real-time factor of 0.052, Piper produced one second of audio in about 52 ms on our 4-core cloud container with no GPU. Keep that machine busy for an hour and it would produce about 1,150 minutes of audio. That single division is the start of every self-hosted TTS cost model, and the rest of the model is about why you will not get all 1,150.
+Start with measured synthesis time, then account for idle capacity. A fast voice can still be expensive if its machine spends most of the month waiting for requests.
 
-By the end of this page you will be able to turn a measured real-time factor into a cost per minute with a placeholder price, see how utilisation moves it, and run the deployment and licence checks that decide whether you can ship at all. We quote no vendor or hardware prices; the formula is the deliverable.
-
-## How do you calculate TTS cost per minute?
+## Compute Cost
 
 Divide the machine's hourly price by the minutes of audio it produces per hour at your real operating point. With real-time factor RTF, one fully busy hour produces 60 / RTF minutes of audio, so:
 
@@ -58,7 +59,7 @@ The third column is arithmetic on the second, not a throughput test. Two things 
 
 Where does the money go? The table hints at it. In our cascade the vocoder took 96.4% of synthesis time, so any cost work on that pipeline starts with the vocoder. The [neural vocoder lesson](/learn/100x/tts/what-is-a-neural-vocoder) has the breakdown.
 
-## Why is utilisation the biggest number in the formula?
+## Capacity Utilisation
 
 Because you pay for the machine whether it is speaking or waiting. Cost per minute scales with 1 / U: at U = 0.25, Piper's P × 0.00087 becomes P × 0.0035, four times higher, with no change to the model.
 
@@ -70,7 +71,7 @@ Voice traffic makes high utilisation hard. Calls cluster by time of day, and an 
 
 The comparison with a hosted API follows from the same terms. If you keep N instances warm all month, your floor is N × P × (hours in the month). A hosted service charging A per minute costs A × V for V minutes. The break-even volume is V = N × P × hours / A, before engineering time. Below it, hosted wins on cost; above it, self-hosting can, if the utilisation you assumed is the utilisation you get.
 
-## What changes for in-region and on-prem TTS?
+## Deployment Boundaries
 
 The audio stops being allowed to leave. Often that constraint, rather than cost, is what moves a team to self-host.
 
@@ -78,7 +79,7 @@ The audio stops being allowed to leave. Often that constraint, rather than cost,
 
 **On-premises** means hardware the customer controls, sometimes with no internet access. Everything above still applies, with tighter limits: the hardware is fixed rather than rented, updates become a release process, and monitoring cannot phone home. Model choice shifts towards what fits the machines that exist. That is where CPU numbers like ours become directly useful: a single-voice model at an RTF of 0.052 on four cores, from a 63.5 MB ONNX file, fits hardware a GPU-first model does not.
 
-## Which licences gate a TTS deployment?
+## Licence Review
 
 Every layer of the stack carries its own licence, and a deployment clears the gate only when all of them allow it. For the systems in the build-along:
 
@@ -98,10 +99,15 @@ The aligner row is easy to miss: it never runs at serving time, but it shaped th
   list the licence for data, weights and runtime. If any cell is blank, that is the next task.
 </Practice>
 
-## Where this leaves you
+## Further Experiments
 
 You have now built each stage of a TTS system: audio as numbers, a filtered dataset, a text front end, an acoustic model trained from random weights, a pretrained vocoder, and an [eval harness](/learn/100x/tts/tts-eval-harness) that scores it. The last unit added the parts you would need to take a model further: codec tokens, adaptation, cloning, serving and cost.
 
-The tiny model remains a teaching model: 4.5 minutes of training on 0.74 h of audio, with a mean output WER of 21% against Piper's 1.9% on the same probes. The stages are the same ones a production system uses, and the measurements show how far that one small run got.
+The acoustic model remains a teaching experiment. The saved audio and scores show one run; they do not establish deployment quality or concurrent capacity.
 
 When the requirement is a specific language, dialect, domain or deployment boundary, our [custom speech models](/services/custom-speech-models) engagement follows the same order as this unit: acceptance metrics agreed in writing, then a data assessment, then training and evaluation against those metrics, then deployment.
+
+<Checkpoint
+  question="Does 60 divided by RTF tell you the supported call concurrency?"
+  answer="No. It is a serial production-rate calculation. Concurrent capacity also depends on latency, memory, scheduling and workload."
+/>

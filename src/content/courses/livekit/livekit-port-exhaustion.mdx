@@ -1,13 +1,14 @@
 ---
+lessonId: livekit-lesson-019
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 19
 unit: 5
-unitTitle: 'Finding the ceilings'
-title: 'LiveKit port exhaustion: media servers run out of ports before CPU'
-navTitle: 'Port exhaustion before CPU'
-summary: 'At 612 calls the node wanted 11,120 media ports and had 10,001. Calls connected and carried no audio while CPU sat at 75.7%. Why ports bind first.'
-seoTitle: 'LiveKit Port Exhaustion: Ports Run Out Before CPU | Mahimai'
+unitTitle: 'Capacity Planning'
+title: 'Port Capacity'
+navTitle: 'Port Capacity'
+summary: 'Audit a saved port counter, compare range mode with UDP multiplexing, and measure the actual transport limit before choosing a node capacity.'
+seoTitle: 'LiveKit Port Capacity: Range, UDP Mux and Measurement | Mahimai'
 keywords:
   - 'LiveKit port exhaustion'
   - 'RTP port range'
@@ -16,33 +17,58 @@ keywords:
 proficiency: 'Advanced'
 faq:
   - q: 'How many UDP ports does a LiveKit call use?'
-    a: 'On the fleet we measured, 18.3 media ports per concurrent call on the SFU node, linear across three saturation steps from 204 to 612 calls. Measure your own, since call shape and participant count change it.'
+    a: 'There is no single ports-per-call constant. Transport mode, participants and subscriptions matter. Identify distinct local allocations before interpreting a socket count.'
   - q: 'What happens when a LiveKit node runs out of RTP ports?'
-    a: 'Calls still connect, because signalling does not need a media port. They carry no audio. There is no error, no rejection and no CPU spike, so the failure is invisible to CPU-based monitoring.'
+    a: 'Signalling may succeed while media allocation or ICE fails. Inspect media errors and per-call audio rather than relying on CPU or SIP completion alone.'
   - q: 'Does a bigger instance fix LiveKit port exhaustion?'
-    a: 'No. More vCPU raises the CPU ceiling and leaves the port ceiling where it was. Raising per-node capacity means widening the firewall rules first and the RTP port range in the server config second.'
+    a: 'Extra CPU does not expand a configured port range. First prove that range allocation is the constraint; widening the range or choosing mux changes different aspects of the transport.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
 
-import Pull from '../../../components/course/Pull.astro';
-import Practice from '../../../components/course/Practice.astro';
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
-At 612 calls, one media node needed 11,120 UDP ports. Its configured range held 10,001. The calls connected anyway, and they carried no audio. CPU read 75.7%.
+A saved load report listed 11,120 “media ports” at 612 calls against a configured range of 10,001 ports. That is a reason to inspect the measurement, not enough evidence to declare a LiveKit capacity limit.
 
-Every capacity model we have seen for a media server is built on CPU: measure CPU per call, pick a target utilisation, divide. It is the obvious approach, and it was wrong for the SFU tier we were sizing. By the end of this lesson you will know how many ports a call used on that tier, why the CPU model looks right until it fails, and the order to change things in when you raise per-node capacity.
+This lesson separates the old report from the test you need before using it to size a fleet.
 
-## How many UDP ports does a LiveKit call use?
+## Saved Measurements
 
-On the fleet we measured, each concurrent call held 18.3 media ports on the SFU node, and the count grew in a straight line with calls. We counted media ports in use on a single node across three saturation steps:
+These values came from the earlier course material. The raw socket capture, collection script and exact server build are not bundled here.
 
-| Calls on the node | Media ports | CPU   |
-| ----------------- | ----------- | ----- |
-| 204               | 3,738       | 35.4% |
-| 408               | 7,422       | 56.5% |
-| 612               | 11,120      | 75.7% |
+| Calls on node | Reported port count | Reported CPU |
+| ------------- | ------------------: | -----------: |
+| 204           |               3,738 |        35.4% |
+| 408           |               7,422 |        56.5% |
+| 612           |              11,120 |        75.7% |
 
-That is 18.3 ports per call, dead linear. The range those ports come from is set in the server config: LiveKit's [ports and firewall reference](https://docs.livekit.io/transport/self-hosting/ports-firewall/) lists it as `rtc.port_range_start` and `rtc.port_range_end`, and the defaults in the [sample config](https://github.com/livekit/livekit/blob/master/config-sample.yaml) are:
+The count grows at roughly 18 ports per call. But “port count” could mean socket rows, local endpoints, remote endpoints or several processes combined. Those are different resources. Until the counter is identified, dividing 10,001 by 18.3 does not establish a 550-call ceiling.
+
+## Metric Identity
+
+Count unique local UDP bindings in the relevant network namespace and configured range. Keep the owning PID, local address, port and collection time. Do not count remote peer ports as local allocations.
+
+On Linux, inspect bindings with:
+
+```bash
+sudo ss -H -u -a -n -p
+```
+
+The [ss manual](https://man7.org/linux/man-pages/man8/ss.8.html) explains the columns. Capture the output before, during and after a small known number of calls. Compare the socket changes with participant counts and the running config. Shared ports and multiple local addresses need separate interpretation.
+
+A count above the range size cannot represent unique port numbers inside that one range. Resolve that contradiction before extrapolating.
+
+## Range and Mux
+
+LiveKit supports both a UDP port range and UDP multiplexing. The [official port reference](https://docs.livekit.io/transport/self-hosting/ports-firewall/) documents both; the [server sample config](https://github.com/livekit/livekit/blob/master/config-sample.yaml) shows their configuration.
+
+| Transport mode | Configuration                                   | What to measure                                          |
+| -------------- | ----------------------------------------------- | -------------------------------------------------------- |
+| UDP range      | `rtc.port_range_start` and `rtc.port_range_end` | Allocated local ports, participants, allocation failures |
+| UDP mux        | `rtc.udp_port`                                  | Socket traffic, packet rate, CPU, bandwidth and loss     |
+| ICE TCP / TURN | Separate fallback paths                         | Selected candidate pairs and relay load                  |
+
+Example range configuration:
 
 ```yaml
 rtc:
@@ -50,44 +76,37 @@ rtc:
   port_range_end: 60000
 ```
 
-Both ends are inclusive, so that is 10,001 ports. Divide by 18.3 and the range is exhausted near 550 calls.
+Example mux configuration, as an alternative:
 
-## Why the CPU model looks right until it fails
+```yaml
+rtc:
+  udp_port: 7882
+  # Do not set port_range_start or port_range_end for this mode.
+```
 
-The 70% CPU line also arrives near 550 calls. Two ceilings, measured independently, land in the same place.
+Open the configured media ports in the firewall. Mux removes the same range-allocation model; it does not remove CPU, bandwidth or packet-processing limits.
 
-That coincidence is the trap. Size on CPU and your predicted ceiling matches the real one, so the model appears to work. It keeps appearing to work right up until the day something moves one ceiling and not the other: a new instance type, a codec change, a lighter build of the server. Then the two separate, and the one you are not watching arrives first.
+## Capacity Experiment
 
-## What happens past the port range: connected calls, no audio
+Use a controlled ramp with the same participants, subscriptions, codecs and transport paths as production.
 
-At the 612 step the node went past its configured range, 11,120 ports wanted against 10,001 available. Calls still connected. They carried no audio.
+1. Save the server version, config and firewall rules with the run.
+2. Record active rooms, participants and unique local bindings per node.
+3. Record setup failures, packet loss and decoded audio in both directions.
+4. Hold each step long enough to distinguish startup pressure from steady load.
+5. Change one suspected limit and rerun. A larger port range should move a true range ceiling; it should not fix a CPU bottleneck.
 
-There was no error, no rejection, no CPU spike. Signalling succeeded because it does not need a media port. The result is connected calls carrying silence while every gauge you are watching reads normal. This is the same failure shape as [one-way audio behind NAT](/learn/100x/livekit/livekit-one-way-audio-nat), with a different cause, and it is one of the failure modes collected in [the load test that reported 100% success](/learn/100x/livekit/voice-silent-failures).
+A call can complete SIP signalling while WebRTC media fails. Inspect ICE and server errors too; “no error” is not a guaranteed symptom of allocation failure.
 
-## Why a bigger instance does not help
+## Safe Changes
 
-More vCPU does not add ports. A larger instance moves the CPU ceiling up and leaves the port ceiling exactly where it was. The only thing scaling up achieves is making the no-audio failure arrive ahead of the CPU alarm.
+Allow any new media range before advertising it. Drain the node before restarting it with changed transport settings, then place calls over direct and fallback paths.
 
-<Pull>
-  Size on ports, not CPU, and leave headroom in the resource that fails without an error. We settled
-  at 400 calls per node, 27% port headroom, below the 550 the CPU curve would have allowed.
-</Pull>
+Use the first verified limit, with headroom, as your operating cap. The old 400-call cap can remain a historical planning choice; it is not a recommendation for an unmeasured deployment.
 
-## How to raise per-node capacity safely
+Next: [Autoscaling Signals](/learn/100x/livekit/voice-autoscaling-signal) combines a measured node cap with placement and drain behaviour.
 
-Change the firewall first and the RTP port range second, in that order. A media port the firewall does not permit is dropped before it reaches the machine, and nothing records the drop. If you widen the range in `livekit.yaml` first, the new ports are handed out to calls and the packets never arrive.
-
-1. **Widen the inbound UDP rule** in the security group (or whatever firewall fronts the node) to cover the new range. See the AWS reference for [security group rules](https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html).
-2. **Then change `rtc.port_range_start` and `rtc.port_range_end`** to match the rule exactly, and restart the node.
-3. **Recompute the ceiling**: range size divided by your measured ports per call, then take your headroom off the top.
-4. **Rerun a saturation step** above the old ceiling and confirm every call received inbound packets.
-
-The setup side of the same rule, config range and firewall range matching exactly, is in [deploying LiveKit on AWS](/learn/100x/livekit/self-host-livekit-aws).
-
-<Practice label="Instrument this">
-  Put port occupancy per node on a dashboard and an alarm: it is linear in calls, so it is easy to
-  model and easy to alarm on. CPU is structurally blind to the ceiling that produces calls with no
-  audio.
-</Practice>
-
-Next: [autoscaling on the right signal](/learn/100x/livekit/voice-autoscaling-signal), which turns this ceiling into the metric the fleet scales on.
+<Checkpoint
+  question="A report counts more ports than exist in the configured range. What should you conclude?"
+  answer="First audit the counter: unique local ports, socket rows, remote endpoints and multiple network namespaces are different quantities. The count alone cannot prove range exhaustion."
+/>

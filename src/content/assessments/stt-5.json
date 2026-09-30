@@ -1,0 +1,43 @@
+{
+  "course": "stt",
+  "unit": 5,
+  "version": "1",
+  "questions": [
+    {
+      "id": "stt-5-1",
+      "prompt": "A reference has 10 words, with 2 substitutions, 1 deletion and 1 insertion. What is WER?",
+      "options": [
+        "4%",
+        "40%",
+        "30%"
+      ],
+      "correct": 1,
+      "explanation": "WER is (substitutions + deletions + insertions) / reference words = 4 / 10.",
+      "lesson": "/learn/100x/stt/word-errors"
+    },
+    {
+      "id": "stt-5-2",
+      "prompt": "Only one digit in a part number is wrong. How should exact-match entity scoring count it?",
+      "options": [
+        "The whole identifier is incorrect",
+        "The identifier is correct because most digits match",
+        "Ignore it if sentence WER is low"
+      ],
+      "correct": 0,
+      "explanation": "An exact-match identifier must match every character. A nearly correct identifier can still select the wrong part.",
+      "lesson": "/learn/100x/stt/entity-accuracy"
+    },
+    {
+      "id": "stt-5-3",
+      "prompt": "How do you isolate the effect of added noise?",
+      "options": [
+        "Use different speakers for every noise setting",
+        "Change the transcript policy with the noise",
+        "Score clean and noisy versions of the same held-out examples"
+      ],
+      "correct": 2,
+      "explanation": "Paired examples keep the source speech fixed, making the channel change easier to interpret.",
+      "lesson": "/learn/100x/stt/channel-robustness"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+diagram theme: light background: #fcfcfc text: (color: #0a0a0a)
+default node text: (size: 17) fill: #fcfcfc border: #95959d
+default edge line: #55555c
+node n0 "Spectral frames" shape: document
+node n1 "Strided convolutions" icon: cubes right of n0
+edge n0 -> n1
+node n2 "Bidirectional GRU" icon: cube right of n1
+edge n1 -> n2
+node n3 "Token scores" shape: document right of n2
+edge n2 -> n3

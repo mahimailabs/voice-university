@@ -1,0 +1,1237 @@
+{
+  "digit_error_rate": 0.26953125,
+  "exact_match": 0.5166666666666667,
+  "edits": 69,
+  "reference_digits": 256,
+  "sequences": 120,
+  "predictions": [
+    {
+      "id": "19-0",
+      "speaker": "yweweler",
+      "reference": "183",
+      "hypothesis": "183",
+      "files": [
+        "1_yweweler_31.wav",
+        "8_yweweler_29.wav",
+        "3_yweweler_39.wav"
+      ]
+    },
+    {
+      "id": "19-1",
+      "speaker": "yweweler",
+      "reference": "294",
+      "hypothesis": "294",
+      "files": [
+        "2_yweweler_14.wav",
+        "9_yweweler_23.wav",
+        "4_yweweler_32.wav"
+      ]
+    },
+    {
+      "id": "19-2",
+      "speaker": "yweweler",
+      "reference": "15",
+      "hypothesis": "5",
+      "files": [
+        "1_yweweler_26.wav",
+        "5_yweweler_1.wav"
+      ]
+    },
+    {
+      "id": "19-3",
+      "speaker": "yweweler",
+      "reference": "3",
+      "hypothesis": "3",
+      "files": [
+        "3_yweweler_15.wav"
+      ]
+    },
+    {
+      "id": "19-4",
+      "speaker": "yweweler",
+      "reference": "11",
+      "hypothesis": "4",
+      "files": [
+        "1_yweweler_32.wav",
+        "1_yweweler_1.wav"
+      ]
+    },
+    {
+      "id": "19-5",
+      "speaker": "yweweler",
+      "reference": "667",
+      "hypothesis": "37",
+      "files": [
+        "6_yweweler_47.wav",
+        "6_yweweler_26.wav",
+        "7_yweweler_41.wav"
+      ]
+    },
+    {
+      "id": "19-6",
+      "speaker": "yweweler",
+      "reference": "638",
+      "hypothesis": "38",
+      "files": [
+        "6_yweweler_41.wav",
+        "3_yweweler_6.wav",
+        "8_yweweler_14.wav"
+      ]
+    },
+    {
+      "id": "19-7",
+      "speaker": "yweweler",
+      "reference": "32",
+      "hypothesis": "32",
+      "files": [
+        "3_yweweler_16.wav",
+        "2_yweweler_45.wav"
+      ]
+    },
+    {
+      "id": "19-8",
+      "speaker": "yweweler",
+      "reference": "8",
+      "hypothesis": "8",
+      "files": [
+        "8_yweweler_5.wav"
+      ]
+    },
+    {
+      "id": "19-9",
+      "speaker": "yweweler",
+      "reference": "7",
+      "hypothesis": "7",
+      "files": [
+        "7_yweweler_36.wav"
+      ]
+    },
+    {
+      "id": "19-10",
+      "speaker": "yweweler",
+      "reference": "787",
+      "hypothesis": "787",
+      "files": [
+        "7_yweweler_3.wav",
+        "8_yweweler_33.wav",
+        "7_yweweler_4.wav"
+      ]
+    },
+    {
+      "id": "19-11",
+      "speaker": "yweweler",
+      "reference": "3",
+      "hypothesis": "3",
+      "files": [
+        "3_yweweler_13.wav"
+      ]
+    },
+    {
+      "id": "19-12",
+      "speaker": "yweweler",
+      "reference": "67",
+      "hypothesis": "37",
+      "files": [
+        "6_yweweler_15.wav",
+        "7_yweweler_48.wav"
+      ]
+    },
+    {
+      "id": "19-13",
+      "speaker": "yweweler",
+      "reference": "7",
+      "hypothesis": "7",
+      "files": [
+        "7_yweweler_25.wav"
+      ]
+    },
+    {
+      "id": "19-14",
+      "speaker": "yweweler",
+      "reference": "42",
+      "hypothesis": "42",
+      "files": [
+        "4_yweweler_35.wav",
+        "2_yweweler_34.wav"
+      ]
+    },
+    {
+      "id": "19-15",
+      "speaker": "yweweler",
+      "reference": "01",
+      "hypothesis": "0",
+      "files": [
+        "0_yweweler_20.wav",
+        "1_yweweler_26.wav"
+      ]
+    },
+    {
+      "id": "19-16",
+      "speaker": "yweweler",
+      "reference": "7",
+      "hypothesis": "7",
+      "files": [
+        "7_yweweler_12.wav"
+      ]
+    },
+    {
+      "id": "19-17",
+      "speaker": "yweweler",
+      "reference": "702",
+      "hypothesis": "0",
+      "files": [
+        "7_yweweler_33.wav",
+        "0_yweweler_46.wav",
+        "2_yweweler_24.wav"
+      ]
+    },
+    {
+      "id": "19-18",
+      "speaker": "yweweler",
+      "reference": "2",
+      "hypothesis": "2",
+      "files": [
+        "2_yweweler_18.wav"
+      ]
+    },
+    {
+      "id": "19-19",
+      "speaker": "yweweler",
+      "reference": "71",
+      "hypothesis": "7",
+      "files": [
+        "7_yweweler_2.wav",
+        "1_yweweler_44.wav"
+      ]
+    },
+    {
+      "id": "19-20",
+      "speaker": "yweweler",
+      "reference": "162",
+      "hypothesis": "12",
+      "files": [
+        "1_yweweler_0.wav",
+        "6_yweweler_30.wav",
+        "2_yweweler_44.wav"
+      ]
+    },
+    {
+      "id": "19-21",
+      "speaker": "yweweler",
+      "reference": "098",
+      "hypothesis": "08",
+      "files": [
+        "0_yweweler_42.wav",
+        "9_yweweler_29.wav",
+        "8_yweweler_23.wav"
+      ]
+    },
+    {
+      "id": "19-22",
+      "speaker": "yweweler",
+      "reference": "85",
+      "hypothesis": "85",
+      "files": [
+        "8_yweweler_11.wav",
+        "5_yweweler_1.wav"
+      ]
+    },
+    {
+      "id": "19-23",
+      "speaker": "yweweler",
+      "reference": "313",
+      "hypothesis": "33",
+      "files": [
+        "3_yweweler_25.wav",
+        "1_yweweler_39.wav",
+        "3_yweweler_35.wav"
+      ]
+    },
+    {
+      "id": "19-24",
+      "speaker": "yweweler",
+      "reference": "84",
+      "hypothesis": "84",
+      "files": [
+        "8_yweweler_40.wav",
+        "4_yweweler_5.wav"
+      ]
+    },
+    {
+      "id": "19-25",
+      "speaker": "yweweler",
+      "reference": "848",
+      "hypothesis": "848",
+      "files": [
+        "8_yweweler_41.wav",
+        "4_yweweler_33.wav",
+        "8_yweweler_36.wav"
+      ]
+    },
+    {
+      "id": "19-26",
+      "speaker": "yweweler",
+      "reference": "2",
+      "hypothesis": "2",
+      "files": [
+        "2_yweweler_10.wav"
+      ]
+    },
+    {
+      "id": "19-27",
+      "speaker": "yweweler",
+      "reference": "8",
+      "hypothesis": "8",
+      "files": [
+        "8_yweweler_42.wav"
+      ]
+    },
+    {
+      "id": "19-28",
+      "speaker": "yweweler",
+      "reference": "76",
+      "hypothesis": "7",
+      "files": [
+        "7_yweweler_48.wav",
+        "6_yweweler_27.wav"
+      ]
+    },
+    {
+      "id": "19-29",
+      "speaker": "yweweler",
+      "reference": "27",
+      "hypothesis": "27",
+      "files": [
+        "2_yweweler_28.wav",
+        "7_yweweler_6.wav"
+      ]
+    },
+    {
+      "id": "19-30",
+      "speaker": "yweweler",
+      "reference": "876",
+      "hypothesis": "87",
+      "files": [
+        "8_yweweler_44.wav",
+        "7_yweweler_10.wav",
+        "6_yweweler_3.wav"
+      ]
+    },
+    {
+      "id": "19-31",
+      "speaker": "yweweler",
+      "reference": "65",
+      "hypothesis": "35",
+      "files": [
+        "6_yweweler_35.wav",
+        "5_yweweler_42.wav"
+      ]
+    },
+    {
+      "id": "19-32",
+      "speaker": "yweweler",
+      "reference": "4",
+      "hypothesis": "1",
+      "files": [
+        "4_yweweler_23.wav"
+      ]
+    },
+    {
+      "id": "19-33",
+      "speaker": "yweweler",
+      "reference": "3",
+      "hypothesis": "3",
+      "files": [
+        "3_yweweler_31.wav"
+      ]
+    },
+    {
+      "id": "19-34",
+      "speaker": "yweweler",
+      "reference": "2",
+      "hypothesis": "2",
+      "files": [
+        "2_yweweler_36.wav"
+      ]
+    },
+    {
+      "id": "19-35",
+      "speaker": "yweweler",
+      "reference": "981",
+      "hypothesis": "181",
+      "files": [
+        "9_yweweler_10.wav",
+        "8_yweweler_42.wav",
+        "1_yweweler_33.wav"
+      ]
+    },
+    {
+      "id": "19-36",
+      "speaker": "yweweler",
+      "reference": "295",
+      "hypothesis": "295",
+      "files": [
+        "2_yweweler_22.wav",
+        "9_yweweler_4.wav",
+        "5_yweweler_6.wav"
+      ]
+    },
+    {
+      "id": "19-37",
+      "speaker": "yweweler",
+      "reference": "32",
+      "hypothesis": "83",
+      "files": [
+        "3_yweweler_22.wav",
+        "2_yweweler_25.wav"
+      ]
+    },
+    {
+      "id": "19-38",
+      "speaker": "yweweler",
+      "reference": "721",
+      "hypothesis": "72",
+      "files": [
+        "7_yweweler_49.wav",
+        "2_yweweler_34.wav",
+        "1_yweweler_26.wav"
+      ]
+    },
+    {
+      "id": "19-39",
+      "speaker": "yweweler",
+      "reference": "351",
+      "hypothesis": "35",
+      "files": [
+        "3_yweweler_48.wav",
+        "5_yweweler_22.wav",
+        "1_yweweler_23.wav"
+      ]
+    },
+    {
+      "id": "19-40",
+      "speaker": "yweweler",
+      "reference": "78",
+      "hypothesis": "78",
+      "files": [
+        "7_yweweler_21.wav",
+        "8_yweweler_40.wav"
+      ]
+    },
+    {
+      "id": "19-41",
+      "speaker": "yweweler",
+      "reference": "09",
+      "hypothesis": "15",
+      "files": [
+        "0_yweweler_34.wav",
+        "9_yweweler_15.wav"
+      ]
+    },
+    {
+      "id": "19-42",
+      "speaker": "yweweler",
+      "reference": "172",
+      "hypothesis": "472",
+      "files": [
+        "1_yweweler_30.wav",
+        "7_yweweler_39.wav",
+        "2_yweweler_24.wav"
+      ]
+    },
+    {
+      "id": "19-43",
+      "speaker": "yweweler",
+      "reference": "70",
+      "hypothesis": "70",
+      "files": [
+        "7_yweweler_39.wav",
+        "0_yweweler_33.wav"
+      ]
+    },
+    {
+      "id": "19-44",
+      "speaker": "yweweler",
+      "reference": "348",
+      "hypothesis": "848",
+      "files": [
+        "3_yweweler_22.wav",
+        "4_yweweler_14.wav",
+        "8_yweweler_31.wav"
+      ]
+    },
+    {
+      "id": "19-45",
+      "speaker": "yweweler",
+      "reference": "283",
+      "hypothesis": "283",
+      "files": [
+        "2_yweweler_17.wav",
+        "8_yweweler_35.wav",
+        "3_yweweler_19.wav"
+      ]
+    },
+    {
+      "id": "19-46",
+      "speaker": "yweweler",
+      "reference": "4",
+      "hypothesis": "4",
+      "files": [
+        "4_yweweler_8.wav"
+      ]
+    },
+    {
+      "id": "19-47",
+      "speaker": "yweweler",
+      "reference": "91",
+      "hypothesis": "91",
+      "files": [
+        "9_yweweler_41.wav",
+        "1_yweweler_48.wav"
+      ]
+    },
+    {
+      "id": "19-48",
+      "speaker": "yweweler",
+      "reference": "314",
+      "hypothesis": "314",
+      "files": [
+        "3_yweweler_22.wav",
+        "1_yweweler_37.wav",
+        "4_yweweler_18.wav"
+      ]
+    },
+    {
+      "id": "19-49",
+      "speaker": "yweweler",
+      "reference": "76",
+      "hypothesis": "78",
+      "files": [
+        "7_yweweler_1.wav",
+        "6_yweweler_16.wav"
+      ]
+    },
+    {
+      "id": "19-50",
+      "speaker": "yweweler",
+      "reference": "6",
+      "hypothesis": "3",
+      "files": [
+        "6_yweweler_1.wav"
+      ]
+    },
+    {
+      "id": "19-51",
+      "speaker": "yweweler",
+      "reference": "795",
+      "hypothesis": "795",
+      "files": [
+        "7_yweweler_22.wav",
+        "9_yweweler_26.wav",
+        "5_yweweler_19.wav"
+      ]
+    },
+    {
+      "id": "19-52",
+      "speaker": "yweweler",
+      "reference": "401",
+      "hypothesis": "401",
+      "files": [
+        "4_yweweler_12.wav",
+        "0_yweweler_11.wav",
+        "1_yweweler_47.wav"
+      ]
+    },
+    {
+      "id": "19-53",
+      "speaker": "yweweler",
+      "reference": "710",
+      "hypothesis": "710",
+      "files": [
+        "7_yweweler_13.wav",
+        "1_yweweler_30.wav",
+        "0_yweweler_49.wav"
+      ]
+    },
+    {
+      "id": "19-54",
+      "speaker": "yweweler",
+      "reference": "55",
+      "hypothesis": "55",
+      "files": [
+        "5_yweweler_24.wav",
+        "5_yweweler_17.wav"
+      ]
+    },
+    {
+      "id": "19-55",
+      "speaker": "yweweler",
+      "reference": "005",
+      "hypothesis": "005",
+      "files": [
+        "0_yweweler_19.wav",
+        "0_yweweler_15.wav",
+        "5_yweweler_45.wav"
+      ]
+    },
+    {
+      "id": "19-56",
+      "speaker": "yweweler",
+      "reference": "54",
+      "hypothesis": "54",
+      "files": [
+        "5_yweweler_5.wav",
+        "4_yweweler_45.wav"
+      ]
+    },
+    {
+      "id": "19-57",
+      "speaker": "yweweler",
+      "reference": "8",
+      "hypothesis": "8",
+      "files": [
+        "8_yweweler_45.wav"
+      ]
+    },
+    {
+      "id": "19-58",
+      "speaker": "yweweler",
+      "reference": "9",
+      "hypothesis": "5",
+      "files": [
+        "9_yweweler_18.wav"
+      ]
+    },
+    {
+      "id": "19-59",
+      "speaker": "yweweler",
+      "reference": "650",
+      "hypothesis": "50",
+      "files": [
+        "6_yweweler_20.wav",
+        "5_yweweler_4.wav",
+        "0_yweweler_37.wav"
+      ]
+    },
+    {
+      "id": "19-60",
+      "speaker": "yweweler",
+      "reference": "7",
+      "hypothesis": "7",
+      "files": [
+        "7_yweweler_21.wav"
+      ]
+    },
+    {
+      "id": "19-61",
+      "speaker": "yweweler",
+      "reference": "2",
+      "hypothesis": "2",
+      "files": [
+        "2_yweweler_45.wav"
+      ]
+    },
+    {
+      "id": "19-62",
+      "speaker": "yweweler",
+      "reference": "8",
+      "hypothesis": "8",
+      "files": [
+        "8_yweweler_12.wav"
+      ]
+    },
+    {
+      "id": "19-63",
+      "speaker": "yweweler",
+      "reference": "12",
+      "hypothesis": "12",
+      "files": [
+        "1_yweweler_46.wav",
+        "2_yweweler_37.wav"
+      ]
+    },
+    {
+      "id": "19-64",
+      "speaker": "yweweler",
+      "reference": "8",
+      "hypothesis": "8",
+      "files": [
+        "8_yweweler_12.wav"
+      ]
+    },
+    {
+      "id": "19-65",
+      "speaker": "yweweler",
+      "reference": "93",
+      "hypothesis": "53",
+      "files": [
+        "9_yweweler_27.wav",
+        "3_yweweler_39.wav"
+      ]
+    },
+    {
+      "id": "19-66",
+      "speaker": "yweweler",
+      "reference": "930",
+      "hypothesis": "180",
+      "files": [
+        "9_yweweler_10.wav",
+        "3_yweweler_49.wav",
+        "0_yweweler_23.wav"
+      ]
+    },
+    {
+      "id": "19-67",
+      "speaker": "yweweler",
+      "reference": "672",
+      "hypothesis": "372",
+      "files": [
+        "6_yweweler_49.wav",
+        "7_yweweler_49.wav",
+        "2_yweweler_4.wav"
+      ]
+    },
+    {
+      "id": "19-68",
+      "speaker": "yweweler",
+      "reference": "680",
+      "hypothesis": "80",
+      "files": [
+        "6_yweweler_41.wav",
+        "8_yweweler_44.wav",
+        "0_yweweler_46.wav"
+      ]
+    },
+    {
+      "id": "19-69",
+      "speaker": "yweweler",
+      "reference": "489",
+      "hypothesis": "489",
+      "files": [
+        "4_yweweler_24.wav",
+        "8_yweweler_9.wav",
+        "9_yweweler_34.wav"
+      ]
+    },
+    {
+      "id": "19-70",
+      "speaker": "yweweler",
+      "reference": "517",
+      "hypothesis": "57",
+      "files": [
+        "5_yweweler_16.wav",
+        "1_yweweler_4.wav",
+        "7_yweweler_4.wav"
+      ]
+    },
+    {
+      "id": "19-71",
+      "speaker": "yweweler",
+      "reference": "0",
+      "hypothesis": "0",
+      "files": [
+        "0_yweweler_49.wav"
+      ]
+    },
+    {
+      "id": "19-72",
+      "speaker": "yweweler",
+      "reference": "331",
+      "hypothesis": "331",
+      "files": [
+        "3_yweweler_7.wav",
+        "3_yweweler_13.wav",
+        "1_yweweler_29.wav"
+      ]
+    },
+    {
+      "id": "19-73",
+      "speaker": "yweweler",
+      "reference": "65",
+      "hypothesis": "5",
+      "files": [
+        "6_yweweler_45.wav",
+        "5_yweweler_14.wav"
+      ]
+    },
+    {
+      "id": "19-74",
+      "speaker": "yweweler",
+      "reference": "2",
+      "hypothesis": "2",
+      "files": [
+        "2_yweweler_40.wav"
+      ]
+    },
+    {
+      "id": "19-75",
+      "speaker": "yweweler",
+      "reference": "725",
+      "hypothesis": "725",
+      "files": [
+        "7_yweweler_37.wav",
+        "2_yweweler_34.wav",
+        "5_yweweler_17.wav"
+      ]
+    },
+    {
+      "id": "19-76",
+      "speaker": "yweweler",
+      "reference": "4",
+      "hypothesis": "4",
+      "files": [
+        "4_yweweler_28.wav"
+      ]
+    },
+    {
+      "id": "19-77",
+      "speaker": "yweweler",
+      "reference": "764",
+      "hypothesis": "734",
+      "files": [
+        "7_yweweler_44.wav",
+        "6_yweweler_31.wav",
+        "4_yweweler_30.wav"
+      ]
+    },
+    {
+      "id": "19-78",
+      "speaker": "yweweler",
+      "reference": "8",
+      "hypothesis": "8",
+      "files": [
+        "8_yweweler_7.wav"
+      ]
+    },
+    {
+      "id": "19-79",
+      "speaker": "yweweler",
+      "reference": "23",
+      "hypothesis": "83",
+      "files": [
+        "2_yweweler_0.wav",
+        "3_yweweler_9.wav"
+      ]
+    },
+    {
+      "id": "19-80",
+      "speaker": "yweweler",
+      "reference": "904",
+      "hypothesis": "904",
+      "files": [
+        "9_yweweler_12.wav",
+        "0_yweweler_29.wav",
+        "4_yweweler_39.wav"
+      ]
+    },
+    {
+      "id": "19-81",
+      "speaker": "yweweler",
+      "reference": "58",
+      "hypothesis": "586",
+      "files": [
+        "5_yweweler_31.wav",
+        "8_yweweler_32.wav"
+      ]
+    },
+    {
+      "id": "19-82",
+      "speaker": "yweweler",
+      "reference": "11",
+      "hypothesis": "4",
+      "files": [
+        "1_yweweler_8.wav",
+        "1_yweweler_42.wav"
+      ]
+    },
+    {
+      "id": "19-83",
+      "speaker": "yweweler",
+      "reference": "23",
+      "hypothesis": "3",
+      "files": [
+        "2_yweweler_25.wav",
+        "3_yweweler_17.wav"
+      ]
+    },
+    {
+      "id": "19-84",
+      "speaker": "yweweler",
+      "reference": "86",
+      "hypothesis": "88",
+      "files": [
+        "8_yweweler_37.wav",
+        "6_yweweler_28.wav"
+      ]
+    },
+    {
+      "id": "19-85",
+      "speaker": "yweweler",
+      "reference": "59",
+      "hypothesis": "51",
+      "files": [
+        "5_yweweler_38.wav",
+        "9_yweweler_10.wav"
+      ]
+    },
+    {
+      "id": "19-86",
+      "speaker": "yweweler",
+      "reference": "48",
+      "hypothesis": "48",
+      "files": [
+        "4_yweweler_46.wav",
+        "8_yweweler_13.wav"
+      ]
+    },
+    {
+      "id": "19-87",
+      "speaker": "yweweler",
+      "reference": "5",
+      "hypothesis": "5",
+      "files": [
+        "5_yweweler_37.wav"
+      ]
+    },
+    {
+      "id": "19-88",
+      "speaker": "yweweler",
+      "reference": "299",
+      "hypothesis": "299",
+      "files": [
+        "2_yweweler_20.wav",
+        "9_yweweler_3.wav",
+        "9_yweweler_16.wav"
+      ]
+    },
+    {
+      "id": "19-89",
+      "speaker": "yweweler",
+      "reference": "45",
+      "hypothesis": "49",
+      "files": [
+        "4_yweweler_19.wav",
+        "5_yweweler_40.wav"
+      ]
+    },
+    {
+      "id": "19-90",
+      "speaker": "yweweler",
+      "reference": "02",
+      "hypothesis": "00",
+      "files": [
+        "0_yweweler_8.wav",
+        "2_yweweler_7.wav"
+      ]
+    },
+    {
+      "id": "19-91",
+      "speaker": "yweweler",
+      "reference": "354",
+      "hypothesis": "351",
+      "files": [
+        "3_yweweler_8.wav",
+        "5_yweweler_8.wav",
+        "4_yweweler_44.wav"
+      ]
+    },
+    {
+      "id": "19-92",
+      "speaker": "yweweler",
+      "reference": "5",
+      "hypothesis": "5",
+      "files": [
+        "5_yweweler_33.wav"
+      ]
+    },
+    {
+      "id": "19-93",
+      "speaker": "yweweler",
+      "reference": "82",
+      "hypothesis": "8",
+      "files": [
+        "8_yweweler_48.wav",
+        "2_yweweler_19.wav"
+      ]
+    },
+    {
+      "id": "19-94",
+      "speaker": "yweweler",
+      "reference": "04",
+      "hypothesis": "204",
+      "files": [
+        "0_yweweler_29.wav",
+        "4_yweweler_23.wav"
+      ]
+    },
+    {
+      "id": "19-95",
+      "speaker": "yweweler",
+      "reference": "442",
+      "hypothesis": "44",
+      "files": [
+        "4_yweweler_40.wav",
+        "4_yweweler_12.wav",
+        "2_yweweler_3.wav"
+      ]
+    },
+    {
+      "id": "19-96",
+      "speaker": "yweweler",
+      "reference": "6",
+      "hypothesis": "",
+      "files": [
+        "6_yweweler_26.wav"
+      ]
+    },
+    {
+      "id": "19-97",
+      "speaker": "yweweler",
+      "reference": "27",
+      "hypothesis": "7",
+      "files": [
+        "2_yweweler_35.wav",
+        "7_yweweler_21.wav"
+      ]
+    },
+    {
+      "id": "19-98",
+      "speaker": "yweweler",
+      "reference": "40",
+      "hypothesis": "40",
+      "files": [
+        "4_yweweler_39.wav",
+        "0_yweweler_22.wav"
+      ]
+    },
+    {
+      "id": "19-99",
+      "speaker": "yweweler",
+      "reference": "5",
+      "hypothesis": "9",
+      "files": [
+        "5_yweweler_34.wav"
+      ]
+    },
+    {
+      "id": "19-100",
+      "speaker": "yweweler",
+      "reference": "377",
+      "hypothesis": "377",
+      "files": [
+        "3_yweweler_7.wav",
+        "7_yweweler_43.wav",
+        "7_yweweler_17.wav"
+      ]
+    },
+    {
+      "id": "19-101",
+      "speaker": "yweweler",
+      "reference": "66",
+      "hypothesis": "88",
+      "files": [
+        "6_yweweler_48.wav",
+        "6_yweweler_8.wav"
+      ]
+    },
+    {
+      "id": "19-102",
+      "speaker": "yweweler",
+      "reference": "211",
+      "hypothesis": "211",
+      "files": [
+        "2_yweweler_28.wav",
+        "1_yweweler_15.wav",
+        "1_yweweler_20.wav"
+      ]
+    },
+    {
+      "id": "19-103",
+      "speaker": "yweweler",
+      "reference": "229",
+      "hypothesis": "01",
+      "files": [
+        "2_yweweler_30.wav",
+        "2_yweweler_4.wav",
+        "9_yweweler_37.wav"
+      ]
+    },
+    {
+      "id": "19-104",
+      "speaker": "yweweler",
+      "reference": "32",
+      "hypothesis": "32",
+      "files": [
+        "3_yweweler_35.wav",
+        "2_yweweler_36.wav"
+      ]
+    },
+    {
+      "id": "19-105",
+      "speaker": "yweweler",
+      "reference": "081",
+      "hypothesis": "08",
+      "files": [
+        "0_yweweler_44.wav",
+        "8_yweweler_46.wav",
+        "1_yweweler_16.wav"
+      ]
+    },
+    {
+      "id": "19-106",
+      "speaker": "yweweler",
+      "reference": "680",
+      "hypothesis": "80",
+      "files": [
+        "6_yweweler_39.wav",
+        "8_yweweler_48.wav",
+        "0_yweweler_13.wav"
+      ]
+    },
+    {
+      "id": "19-107",
+      "speaker": "yweweler",
+      "reference": "358",
+      "hypothesis": "358",
+      "files": [
+        "3_yweweler_4.wav",
+        "5_yweweler_28.wav",
+        "8_yweweler_5.wav"
+      ]
+    },
+    {
+      "id": "19-108",
+      "speaker": "yweweler",
+      "reference": "6",
+      "hypothesis": "8",
+      "files": [
+        "6_yweweler_22.wav"
+      ]
+    },
+    {
+      "id": "19-109",
+      "speaker": "yweweler",
+      "reference": "268",
+      "hypothesis": "288",
+      "files": [
+        "2_yweweler_34.wav",
+        "6_yweweler_19.wav",
+        "8_yweweler_44.wav"
+      ]
+    },
+    {
+      "id": "19-110",
+      "speaker": "yweweler",
+      "reference": "17",
+      "hypothesis": "",
+      "files": [
+        "1_yweweler_36.wav",
+        "7_yweweler_35.wav"
+      ]
+    },
+    {
+      "id": "19-111",
+      "speaker": "yweweler",
+      "reference": "710",
+      "hypothesis": "70",
+      "files": [
+        "7_yweweler_37.wav",
+        "1_yweweler_22.wav",
+        "0_yweweler_46.wav"
+      ]
+    },
+    {
+      "id": "19-112",
+      "speaker": "yweweler",
+      "reference": "555",
+      "hypothesis": "595",
+      "files": [
+        "5_yweweler_0.wav",
+        "5_yweweler_34.wav",
+        "5_yweweler_26.wav"
+      ]
+    },
+    {
+      "id": "19-113",
+      "speaker": "yweweler",
+      "reference": "95",
+      "hypothesis": "95",
+      "files": [
+        "9_yweweler_35.wav",
+        "5_yweweler_9.wav"
+      ]
+    },
+    {
+      "id": "19-114",
+      "speaker": "yweweler",
+      "reference": "13",
+      "hypothesis": "13",
+      "files": [
+        "1_yweweler_34.wav",
+        "3_yweweler_37.wav"
+      ]
+    },
+    {
+      "id": "19-115",
+      "speaker": "yweweler",
+      "reference": "55",
+      "hypothesis": "55",
+      "files": [
+        "5_yweweler_41.wav",
+        "5_yweweler_16.wav"
+      ]
+    },
+    {
+      "id": "19-116",
+      "speaker": "yweweler",
+      "reference": "737",
+      "hypothesis": "737",
+      "files": [
+        "7_yweweler_3.wav",
+        "3_yweweler_1.wav",
+        "7_yweweler_18.wav"
+      ]
+    },
+    {
+      "id": "19-117",
+      "speaker": "yweweler",
+      "reference": "6",
+      "hypothesis": "8",
+      "files": [
+        "6_yweweler_31.wav"
+      ]
+    },
+    {
+      "id": "19-118",
+      "speaker": "yweweler",
+      "reference": "5",
+      "hypothesis": "5",
+      "files": [
+        "5_yweweler_19.wav"
+      ]
+    },
+    {
+      "id": "19-119",
+      "speaker": "yweweler",
+      "reference": "053",
+      "hypothesis": "053",
+      "files": [
+        "0_yweweler_42.wav",
+        "5_yweweler_37.wav",
+        "3_yweweler_31.wav"
+      ]
+    }
+  ],
+  "parameters": 113227,
+  "best_epoch": 23,
+  "training_seconds": 52.249,
+  "forward_median_ms": 0.494792009703815,
+  "timed_audio_seconds": 1.315,
+  "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "processor": "arm64",
+  "threads": 4,
+  "torch": "2.14.1",
+  "seed": 17,
+  "dataset_commit": "26eb9aaf76e81b692f806f9140c2d2777410d7a1",
+  "checkpoint_sha256": "d0392f2321293023d821f3c2b94260b3fda2cd0a7805591bacb8f39404f282bf"
+}

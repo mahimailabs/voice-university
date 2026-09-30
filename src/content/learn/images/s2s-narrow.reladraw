@@ -1,0 +1,12 @@
+diagram theme: light background: #fcfcfc text: (color: #0a0a0a)
+default node text: (size: 20) fill: #fcfcfc border: #95959d
+default edge line: #55555c
+node cascade "Cascade"
+node cascade.stt "STT" icon: cube
+node cascade.llm "LLM" icon: cube right of cascade.stt (gap: tight)
+node cascade.tts "TTS" icon: cube right of cascade.llm (gap: tight)
+edge cascade.stt -> cascade.llm
+edge cascade.llm -> cascade.tts
+node native "Native audio" below cascade
+node native.model "Audio in → model → audio out" icon: cubes
+node guard "Both require application checks / before business actions" icon: desktop below native

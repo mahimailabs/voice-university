@@ -1,0 +1,49 @@
+---
+lessonId: stt-lesson-024
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 24
+unit: 7
+unitTitle: "Streaming Recognition"
+title: "Causal Context"
+navTitle: "Causal Context"
+summary: "Find every dependency on future audio before calling the recognizer streaming."
+seoTitle: "Causal Context for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+A fast forward pass does not make an offline model causal. Our baseline uses future context in the backward GRU, symmetric convolution padding and whole-utterance normalisation. Its STFT configuration also requires a complete analysis frame before emitting that frame's features.
+
+## Dependency Audit
+
+| Stage | Baseline dependency | Incremental design question |
+| --- | --- | --- |
+| Features | Complete window and utterance statistics | What buffering and normalisation state are retained? |
+| Convolution | Symmetric context | Is future lookahead bounded or removed? |
+| GRU | Forward and backward directions | Can the encoder operate with forward state only? |
+| Decoder | Entire frame path | Which tokens remain provisional across chunks? |
+
+Removing a backward direction changes the representation and requires training an appropriate model. It is not a serving flag that preserves the checkpoint's behaviour.
+
+## Prefix Recompute
+
+The lab can run the offline model on progressively longer prefixes. This shows how hypotheses change as more audio becomes available. It repeats earlier computation and is explicitly not a stateful streaming implementation.
+
+The [STFT interface](https://docs.pytorch.org/docs/2.14/generated/torch.stft.html) helps identify frame boundaries, but streaming correctness also depends on every later stage. Testing only the feature extractor leaves the rest unaudited.
+
+## Chunk Equivalence
+
+For a genuinely incremental implementation, compare a full causal pass with chunked passes using the same model and retained state. Check outputs at multiple boundaries, including boundaries inside repeated digits. Reset state only when the stream actually ends.
+
+<Checkpoint question="Can we cache a bidirectional GRU's early outputs and assume they never change?" answer="Not when later context is allowed to affect them. Specify bounded lookahead or use an architecture and training procedure designed for causal operation." />
+
+Continue with [Partial Transcripts](/learn/100x/stt/partial-transcripts), which replays the measured prefix experiment. [Serving Measurements](/learn/100x/stt/serving-measurements) separates compute time from user-visible delay.

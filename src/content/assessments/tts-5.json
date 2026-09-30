@@ -1,0 +1,43 @@
+{
+  "course": "tts",
+  "unit": 5,
+  "version": "1",
+  "questions": [
+    {
+      "id": "tts-5-1",
+      "prompt": "What is a vocoder\u2019s role in a mel-based TTS pipeline?",
+      "options": [
+        "Dispatch a SIP call",
+        "Convert acoustic features into a waveform",
+        "Normalize account numbers"
+      ],
+      "correct": 1,
+      "explanation": "A vocoder generates audio from the chosen acoustic representation.",
+      "lesson": "/learn/100x/tts/what-is-a-neural-vocoder"
+    },
+    {
+      "id": "tts-5-2",
+      "prompt": "Two models use the same number of mel bins. Are their mels necessarily compatible?",
+      "options": [
+        "No; compare rate, hop, frequency limits and scaling",
+        "Yes; bin count proves compatibility",
+        "Yes; both use floating point"
+      ],
+      "correct": 0,
+      "explanation": "Matching shape is insufficient. The frontend parameters and normalization define the feature distribution.",
+      "lesson": "/learn/100x/tts/mel-recipe-mismatch"
+    },
+    {
+      "id": "tts-5-3",
+      "prompt": "Audio sounds wrong after swapping vocoders. What should you check before retraining?",
+      "options": [
+        "Only the text tokenizer vocabulary",
+        "Only the text length",
+        "The acoustic-feature contract at the boundary"
+      ],
+      "correct": 2,
+      "explanation": "A mismatch between predicted features and vocoder expectations can break a pipeline even if both models work separately.",
+      "lesson": "/learn/100x/tts/end-to-end-tts-vits"
+    }
+  ]
+}

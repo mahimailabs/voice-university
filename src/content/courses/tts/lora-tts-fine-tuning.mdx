@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-025
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 25
 unit: 7
-unitTitle: 'Adapt and ship'
-title: 'LoRA for TTS fine-tuning: adapters for voices, accents and dialects'
-navTitle: 'LoRA fine-tuning'
+unitTitle: 'Adaptation and Serving'
+title: 'LoRA Adaptation'
+navTitle: 'LoRA Adaptation'
 summary: 'The LoRA paper cut trainable parameters 10,000 times on GPT-3. What the same trick does to a speech model, how to run one adapter per dialect, and when to stop.'
 seoTitle: 'LoRA for TTS Fine-Tuning: Adapters Explained | Mahimai'
 keywords:
@@ -23,8 +24,10 @@ faq:
   - q: 'How much audio does a TTS LoRA need?'
     a: 'There is no reliable single number. It depends on the base model, how far the target is from what it already knows, and the acceptance bar. We have not run a TTS LoRA ourselves, so we do not quote hours; the practical answer is to agree the bar first and measure how far a first adapter gets.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Figure from '../../../components/course/Figure.astro';
 import LoraFigure from '../../../components/course/figures/LoraFigure.astro';
@@ -32,13 +35,11 @@ import YouTube from '../../../components/course/YouTube.astro';
 import Pull from '../../../components/course/Pull.astro';
 import Practice from '../../../components/course/Practice.astro';
 
-The [LoRA paper](https://arxiv.org/abs/2106.09685) reports cutting trainable parameters by 10,000 times and GPU memory by 3 times, compared with fully fine-tuning GPT-3 175B, while matching or beating full fine-tuning on the tasks it tested. Those are language-model numbers. The mechanism carries over to speech models unchanged, and it is the default way to adapt a large open TTS model to a new voice or accent.
+LoRA trains small updates to selected weights while keeping the base model frozen. It is one option for adapting a supported TTS model. The examples here explain the method; they are not a measured fine-tuning run.
 
-We describe this method; we did not run it. Every measurement in the build-along ran on a 4-core cloud container with no GPU, and a LoRA run on a modern TTS model is a GPU job. What follows is how the method works, what the sources report, and the discipline we would apply if we ran it.
+## Low-Rank Updates
 
-## What is LoRA fine-tuning?
-
-LoRA freezes every original weight and learns a small correction next to selected layers. For a frozen weight matrix W, it trains two thin matrices, B and A, and the layer computes with W + BA instead of W.
+LoRA freezes every original weight and learns a small correction next to selected layers. For a frozen weight matrix W, it trains two thin matrices, B and A, and the layer computes with W + (alpha / r) BA in the original scaled formulation.
 
 The trick is the shape. If W is d by k, then B is d by r and A is r by k, with the rank r much smaller than d or k. The paper initialises A randomly and B to zeros, so at step zero the correction is zero and the model behaves exactly like the base. Training then moves only A and B.
 
@@ -48,7 +49,7 @@ A worked example with our own model's width makes the scale concrete. Our tiny T
   <LoraFigure />
 </Figure>
 
-## Why use LoRA instead of full fine-tuning for TTS?
+## Adapter Tradeoffs
 
 Full fine-tuning updates every weight. It has the most capacity to absorb a new voice or language, and the most ways to go wrong: more data, more compute, a full model copy per variant, and the risk that the model gains your accent and loses general behaviour it had before (catastrophic forgetting).
 
@@ -57,38 +58,43 @@ LoRA changes the trade in four ways:
 - **The base survives.** The original weights never change. Remove the adapter and the base model's behaviour returns exactly.
 - **Variants are small files.** Ten dialects become one base model plus ten adapters, loaded or swapped at serving time.
 - **No added latency after merging.** The paper notes that BA can be added into W before deployment, so a merged model costs the same to run as the base.
-- **A capacity ceiling.** The rank bounds how much the adapter can learn. A shift in timbre or accent is a small correction; a language the base model barely knows may need more than a low-rank update can hold.
+- **A capacity ceiling.** The rank bounds how much the adapter can learn. A shift in timbre or accent may fit an adapter; a language the base model barely knows may need more than a low-rank update can hold.
 
 There is speech-specific evidence for the first use case. [LoRP-TTS](https://arxiv.org/abs/2502.07562) applies LoRA to a zero-shot TTS model so that single, noisy, spontaneous recordings work as voice prompts, and reports raising speaker similarity "by up to 30pp while preserving content and naturalness."
 
 <YouTube id="2tdCpd7tcBM" title="Adapting a voice cheaply with LoRA" />
 
-## How do you adapt a TTS model to a dialect with LoRA?
+## Dialect Experiments
 
-Train one adapter per dialect on clean single-speaker audio in that dialect, and judge it on a test set built from exactly the words the base model gets wrong. The recipe has four parts.
+For a dialect experiment, collect consented recordings that cover its sounds and speaking styles. Use several speakers if the target is a dialect rather than one voice, and reserve independent evaluation speakers where the model supports that task. The recipe has four parts.
 
 **Data, prepared like unit 2.** The same manifest, the same [forced-alignment filter](/learn/100x/tts/forced-alignment-tts), the same normalisation. In our LJSpeech subset the alignment filter flagged 86.4% of clips whose transcript contained digits, against 7.7% of clips without. Dialect data has its own version of that trap: transcripts written in the standard spelling of words the speaker says differently. Coverage of the sounds that distinguish the dialect matters more than raw hours.
 
-**One adapter per dialect.** Adapters are cheap, so there is no reason to blend. Training one adapter on three dialects rebuilds the original problem at a smaller scale: the adapter learns their average.
+**Choose the conditioning.** Separate adapters can make variants easier to compare and deploy. A shared adapter with explicit dialect conditioning may also work; compare it rather than assuming mixed data must average the dialects.
 
 **A dialect test set.** Built with a native speaker, containing the words, vowels and constructions the base model renders as its majority neighbour. A general test set the base model already passes will tell you nothing.
 
 **Native listeners per checkpoint.** Output WER and speaker similarity miss a vowel that is slightly off. A short listening session with two native speakers per candidate checkpoint catches it. The [evaluation metrics lesson](/learn/100x/tts/tts-evaluation-metrics) covers what each automatic metric can and cannot see.
 
-## What acceptance bar should a TTS adapter clear?
+## Acceptance Criteria
 
 Write it down before training starts: a target output WER on the dialect test set, a speaker-similarity floor if a specific voice is involved, a latency ceiling on your serving hardware, and a listening sign-off. Without a bar agreed in advance, adaptation work drifts, because the model can always be a little better.
 
 <Pull>
-  Default to LoRA. Escalate to full fine-tuning only when an adapter demonstrably plateaus below the
-  written bar, and let the eval harness decide what demonstrably means.
+  If the base model supports LoRA, compare an adapter against the unchanged model first. Investigate
+  data, targets and optimisation before deciding that full fine-tuning is necessary.
 </Pull>
 
-Our own training run shows the plateau shape you are watching for, at toy scale. Validation mel L1 fell from 0.4643 at step 550 to 0.4268 at step 1,650, then sat at 0.4282 by step 2,200. That was a model trained from scratch on 0.74 h of audio, and on held-out mel L1 the data ran out before the steps did. With an adapter, a plateau below the bar means one of three things: too little data in the target, too low a rank, or a target too far from the base. Raise the rank once; if that does not move the [eval harness](/learn/100x/tts/tts-eval-harness) numbers, the next step is more data or a full fine-tune.
+Our own training run shows the plateau shape you are watching for, at toy scale. Validation mel L1 fell from 0.4643 at step 550 to 0.4268 at step 1,650, then sat at 0.4282 by step 2,200. That was a model trained from scratch on 0.74 h of audio, without establishing the cause. With an adapter, a plateau below the bar can have several causes, including too little data in the target, too low a rank, or a target too far from the base. Use controlled changes to distinguish those causes with the [eval harness](/learn/100x/tts/tts-eval-harness), including learning-rate and target checks.
 
 <Practice label="Before the first adapter">
   Draft the acceptance sheet now: the dialect test set, the WER target, the latency ceiling, and the
   names of two native listeners. If you cannot fill in all four, the adapter is not ready to train.
 </Practice>
+
+<Checkpoint
+  question="Does a small adapter guarantee a small memory footprint?"
+  answer="Only the trainable update is small. Base weights, activations, sequence lengths and the training runtime still consume memory."
+/>
 
 Next: [voice cloning vs fine-tuning](/learn/100x/tts/voice-cloning-vs-fine-tuning), for when the target is one person's voice rather than a whole dialect.

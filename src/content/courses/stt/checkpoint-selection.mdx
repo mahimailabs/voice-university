@@ -1,0 +1,56 @@
+---
+lessonId: stt-lesson-014
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 14
+unit: 4
+unitTitle: "Training Experiments"
+title: "Checkpoint Selection"
+navTitle: "Checkpoint Selection"
+summary: "Choose the model using a declared validation metric and keep evaluation evidence separate from selection."
+seoTitle: "Checkpoint Selection for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+The retained checkpoint is epoch 23. The run continued to epoch 60, but the selection rule kept the earliest checkpoint with the lowest observed validation digit error rate. Continuing to train did not automatically earn a replacement.
+
+## Selection Rule
+
+```python
+if validation_digit_error_rate < best:
+    best = validation_digit_error_rate
+    torch.save(model.state_dict(), 'best.pt')
+```
+
+The strict comparison retains the earlier checkpoint on a tie. A different rule is valid if declared before inspecting the results: for example, a minimum exact-match requirement followed by lower latency. Do not quietly switch metrics after seeing which one makes a run look better.
+
+## Evaluation Result
+
+<TrainingEvidence kind="result" />
+
+These are development results from the speaker split described earlier. The evaluation speaker was already inspected after the pilot, so it is not a fresh blind test. The checkpoint was selected with validation error, but that does not undo the wider development history.
+
+## Save Provenance
+
+Retain model weights, vocabulary, feature recipe, dataset revision, split manifest, package versions and checkpoint checksum. A weight file without its input contract is not a reproducible recognizer.
+
+```python
+import hashlib
+with open('my-run/best.pt', 'rb') as f:
+    print(hashlib.sha256(f.read()).hexdigest())
+```
+
+Compare this with the corresponding field in `results.json`, not with another machine's training output. Seeds help reproduce a run but do not promise identical results across every platform.
+
+<Checkpoint question="Can the final evaluation score decide which epoch to keep?" answer="If it does, that set is serving as validation. Use another locked evaluation set for a final claim, and disclose any earlier inspection that influenced development." />
+
+[Error Inspection](/learn/100x/stt/error-inspection) makes the aggregate result tangible. The [evaluation harness](/learn/100x/stt/evaluation-harness) packages the evidence for comparison with another run.

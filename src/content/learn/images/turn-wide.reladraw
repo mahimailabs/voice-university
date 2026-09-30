@@ -1,0 +1,11 @@
+diagram theme: light background: #fcfcfc text: (color: #0a0a0a)
+default node text: (size: 18) fill: #fcfcfc border: #95959d
+default edge line: #55555c line: (path: curved)
+style dim text: (color: #55555c)
+node policy "End-of-turn / decision" icon: cubes
+node audio "Speech activity" icon: cube above policy left
+node context "Transcript + / task context" shape: document right of audio
+node reply "Permit response" icon: laptop below policy
+edge audio -> policy
+edge context -> policy
+edge policy -> reply line: #6f3fb0

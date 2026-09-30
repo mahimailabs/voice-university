@@ -1,0 +1,43 @@
+{
+  "course": "stt",
+  "unit": 3,
+  "version": "1",
+  "questions": [
+    {
+      "id": "stt-3-1",
+      "prompt": "A CTC path is 1, 1, blank, 1. What does it decode to?",
+      "options": [
+        "11",
+        "1",
+        "111"
+      ],
+      "correct": 0,
+      "explanation": "Collapse adjacent repeated labels first, then remove blanks. The blank separates the two ones.",
+      "lesson": "/learn/100x/stt/ctc-alignment"
+    },
+    {
+      "id": "stt-3-2",
+      "prompt": "The task recognizes digits 0\u20139 with CTC. How many output classes are needed?",
+      "options": [
+        "10: one for each digit",
+        "12: digits, spaces and punctuation",
+        "11: ten digits and a blank"
+      ],
+      "correct": 2,
+      "explanation": "This digit-string task uses ten labels plus the CTC blank class.",
+      "lesson": "/learn/100x/stt/character-tokens"
+    },
+    {
+      "id": "stt-3-3",
+      "prompt": "What does greedy decoding select before CTC collapse?",
+      "options": [
+        "The longest output string",
+        "The highest-scoring class at each frame",
+        "The globally best word sequence"
+      ],
+      "correct": 1,
+      "explanation": "Greedy decoding makes local frame choices. It does not search across multiple alignments.",
+      "lesson": "/learn/100x/stt/greedy-decoding"
+    }
+  ]
+}

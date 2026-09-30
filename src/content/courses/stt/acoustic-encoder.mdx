@@ -1,0 +1,58 @@
+---
+lessonId: stt-lesson-009
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 9
+unit: 3
+unitTitle: "First Recognizer"
+title: "Acoustic Encoder"
+navTitle: "Acoustic Encoder"
+summary: "Follow the small convolutional and recurrent network from spectral frames to token probabilities."
+seoTitle: "Acoustic Encoder for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+The model has three jobs: reduce the frame rate, combine acoustic context and assign a probability to each token. Every weight in these stages starts randomly. There is no pretrained speech encoder hidden in the baseline.
+
+## Model Stages
+
+<LearnDiagram name="stt-model" caption="Offline baseline: spectral frames pass through strided convolutions, a bidirectional GRU and an eleven-token output head." />
+
+```python
+self.conv = nn.Sequential(
+    nn.Conv1d(129, 64, 5, stride=2, padding=2), nn.ReLU(),
+    nn.Conv1d(64, 64, 5, stride=2, padding=2), nn.ReLU())
+self.gru = nn.GRU(64, 64, batch_first=True, bidirectional=True)
+self.head = nn.Linear(128, 11)
+```
+
+The two GRU directions produce 128 features per frame. The final linear layer maps those features to eleven scores, and `log_softmax` turns them into the log probabilities consumed by the loss.
+
+## Context Cost
+
+The backward GRU direction uses later frames. This makes the baseline an offline encoder even if the forward pass is very fast. Feeding it partial audio repeatedly can produce useful previews, but that is not equivalent to incremental inference with a causal model.
+
+Packing lengths matters here: padded frames should not become future context. Revisit [Batch Construction](/learn/100x/stt/batch-construction) before replacing the recurrent layer.
+
+## Inspect Parameters
+
+```python
+from lab import Recognizer
+model = Recognizer()
+print(sum(p.numel() for p in model.parameters()))
+```
+
+The checked-in implementation has 113,227 trainable parameters. That is a count from the code, not a capacity recommendation. Changing channel width, vocabulary size or directionality changes the count and the task the model can solve.
+
+<Checkpoint question="Does making this model smaller automatically make it a streaming model?" answer="No. Size affects work and memory; streaming also requires controlling future context and preserving state across chunks. The backward GRU and utterance normalisation still depend on future audio." />
+
+Use the complete class in [the lab download](/labs/stt/stt-lab.zip); the excerpt omits packing and output-length code. Next comes [CTC Alignment](/learn/100x/stt/ctc-alignment), which trains the frame predictions without manually timed character labels.

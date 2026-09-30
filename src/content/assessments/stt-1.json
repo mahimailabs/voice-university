@@ -1,0 +1,43 @@
+{
+  "course": "stt",
+  "unit": 1,
+  "version": "1",
+  "questions": [
+    {
+      "id": "stt-1-1",
+      "prompt": "An 8,000 Hz recording contains 16,000 samples. How long is it?",
+      "options": [
+        "0.5 seconds",
+        "16 seconds",
+        "2 seconds"
+      ],
+      "correct": 2,
+      "explanation": "Duration is sample count divided by sample rate: 16,000 / 8,000 = 2.",
+      "lesson": "/learn/100x/stt/waveform-basics"
+    },
+    {
+      "id": "stt-1-2",
+      "prompt": "A spectrogram has one bright vertical stripe across many frequencies. What does it suggest?",
+      "options": [
+        "A permanently silent recording",
+        "A brief broadband event",
+        "A sustained single-frequency tone"
+      ],
+      "correct": 1,
+      "explanation": "Time runs across the plot. Energy spanning frequencies at one time indicates a short broadband event.",
+      "lesson": "/learn/100x/stt/speech-features"
+    },
+    {
+      "id": "stt-1-3",
+      "prompt": "Your model performs well on simulated telephone audio. What should you test next?",
+      "options": [
+        "Held-out real telephone recordings",
+        "The same clean training recordings",
+        "Only a higher sample rate"
+      ],
+      "correct": 0,
+      "explanation": "A channel simulation covers selected distortions. Real calls add different noise, devices and network conditions.",
+      "lesson": "/learn/100x/stt/telephone-channels"
+    }
+  ]
+}

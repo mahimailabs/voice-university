@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-023
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 23
 unit: 7
-unitTitle: 'Adapt and ship'
-title: 'Codec-token TTS: neural audio codecs, token models and Magpie-TTS'
-navTitle: 'Codec-token TTS'
+unitTitle: 'Adaptation and Serving'
+title: 'Codec Tokens'
+navTitle: 'Codec Tokens'
 summary: 'VALL-E cloned a voice from a 3-second recording by treating speech as tokens. How codec-token TTS works, what Magpie-TTS adds, and where it breaks.'
 seoTitle: 'Codec-Token TTS and Magpie-TTS Explained | Mahimai'
 keywords:
@@ -23,15 +24,15 @@ faq:
   - q: 'Did you train a codec-token model for the build-along?'
     a: 'No. Everything on this page about codecs, VALL-E and Magpie-TTS is sourced description from the papers and the NVIDIA NeMo documentation. Our own measured work is the small mel-based model trained on a 4-core cloud container with no GPU.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
 import Pull from '../../../components/course/Pull.astro';
 
-The [VALL-E paper](https://arxiv.org/abs/2301.02111) reports synthesising an unseen speaker from "a 3-second enrolled recording" used as a prompt, after training on 60K hours of English speech. Our own model, trained on 0.74 h of one speaker, cannot imitate anyone. The gap is partly scale and partly representation: VALL-E does not predict a mel spectrogram at all.
-
-By the end of this page you will know what a neural audio codec produces, why turning speech into tokens made few-second cloning possible, and what NVIDIA's Magpie-TTS adds to stop a token model from wandering off the script. None of this was trained by us; it is sourced description, placed next to the cascade you built in units 4 and 5.
+A neural codec turns audio into discrete codes. A TTS model can predict those codes and use the codec decoder to produce speech. This is a model-family comparison, not an extension we trained.
 
 <CourseFigure
   id="tts-three-families"
@@ -41,7 +42,7 @@ By the end of this page you will know what a neural audio codec produces, why tu
   codes and a codec decoder.
 </CourseFigure>
 
-## What is a neural audio codec?
+## Neural Codecs
 
 A neural audio codec is an encoder and decoder trained together to compress a waveform into a short sequence of discrete codes and rebuild it. The codes are integers from a fixed codebook, which is exactly what a language-model-style network knows how to predict.
 
@@ -49,15 +50,15 @@ A neural audio codec is an encoder and decoder trained together to compress a wa
 
 Compare this to the mel recipe from unit 1. A mel spectrogram is continuous, throws away phase, and needs a separately trained vocoder whose recipe must match exactly ([the mismatch lesson](/learn/100x/tts/mel-recipe-mismatch) measured what happens when it does not). A codec token sequence is discrete, and the decoder that turns it into audio was trained with the encoder, so the pair agree by construction.
 
-## How does a codec-token TTS model generate speech?
+## Token Generation
 
 It treats synthesis as sequence prediction. Text goes in, the model predicts codec tokens one step at a time, and the codec decoder produces the waveform.
 
 VALL-E framed TTS as "a conditional language modeling task rather than continuous signal regression." That framing is what makes prompt-based cloning cheap. Encode a few seconds of a new speaker with the same codec, put those tokens in front of the sequence, and the model continues in the voice it was shown. The paper also notes that the prompt's emotion and acoustic environment carry through, which cuts both ways: a noisy reference produces noisy output.
 
-The price is the failure mode. An autoregressive token model has no duration predictor and no length regulator. Our model from [training from scratch](/learn/100x/tts/train-tts-model-from-scratch) cannot skip a symbol it was given, because every character gets an explicit number of frames. (Digits it was never given are another matter: they are dropped before the model runs.) A token model decides for itself when to move on, so it can repeat, skip or keep talking past the end of the text. That is the subject of [TTS hallucinations](/learn/100x/tts/tts-hallucinations).
+The price is the failure mode. The autoregressive token models discussed here do not use our explicit per-character length regulator. Our model from [training from scratch](/learn/100x/tts/train-tts-model-from-scratch) allocates frames to each encoded character, but allocation alone does not ensure intelligible speech. (Digits it was never given are another matter: they are dropped before the model runs.) A token model decides for itself when to move on, so it can repeat, skip or keep talking past the end of the text. That is the subject of [TTS hallucinations](/learn/100x/tts/tts-hallucinations).
 
-## What does Magpie-TTS add?
+## Magpie Architecture
 
 Magpie-TTS is NVIDIA's codec-token model in NeMo. The [Magpie-TTS documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/magpietts.html) describes "an encoder-decoder transformer architecture that operates on discrete audio tokens produced by a neural audio codec." The encoder reads the text; the decoder generates audio tokens autoregressively while attending to the text and to any audio context.
 
@@ -71,12 +72,11 @@ Four pieces from the docs are worth knowing:
 The docs list a 357M-parameter multilingual checkpoint. For scale, our tiny model has 1,231,185 parameters; Magpie is a different class of system, built for GPUs.
 
 <Pull>
-  A cascade with a duration predictor cannot skip a symbol it was given, by construction. A token
-  model has to be taught not to, and Magpie spends a loss term, an attention prior and a preference
-  stage on it.
+  Explicit durations allocate frames to symbols; the decoder must still render them intelligibly.
+  Magpie instead guides autoregressive alignment with its training losses and attention priors.
 </Pull>
 
-## How does preference optimisation improve TTS?
+## Preference Optimisation
 
 Preference optimisation fine-tunes a trained model towards outputs that score better on measurable rewards. NeMo's [Magpie-TTS preference optimisation page](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/magpietts-po.html) describes two routes, and both use the same rewards: character error rate from an ASR model for intelligibility, speaker similarity for voice consistency, and optionally PESQ for audio quality.
 
@@ -85,5 +85,10 @@ Preference optimisation fine-tunes a trained model towards outputs that score be
 **GRPO** is online. It generates candidates during training (12 per example in the recommended settings, at temperature 0.7 to 0.8), scores them, and pushes the model towards higher reward, with a learning rate of 1e-7. The docs call it "generally recommended over DPO", partly because nothing needs to be pre-generated and stored.
 
 Notice the reward. CER from an ASR model is the same idea as the output WER we compute in the [eval harness](/learn/100x/tts/tts-eval-harness): transcribe the synthesis and compare it to the input text. The difference is where it sits. We use it to judge a model; Magpie's preference stage uses it to train one.
+
+<Checkpoint
+  question="Does a matching codec guarantee correct spoken words?"
+  answer="No. It gives compatible audio codes and decoding. The text-conditioned generator can still produce incorrect content."
+/>
 
 Next: [when to fine-tune a TTS model](/learn/100x/tts/when-to-fine-tune-tts), because most adaptation problems never need a training run at all.

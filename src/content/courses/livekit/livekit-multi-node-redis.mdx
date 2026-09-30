@@ -1,11 +1,12 @@
 ---
+lessonId: livekit-lesson-006
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 6
 unit: 2
-unitTitle: 'Self-hosting the stack'
-title: 'Multi-node LiveKit with Redis: config, room affinity and node failure'
-navTitle: 'Multi-node LiveKit with Redis'
+unitTitle: 'Self-Hosted Stack'
+title: 'Redis Clustering'
+navTitle: 'Redis Clustering'
 summary: 'Your second LiveKit node changes the architecture more than your tenth. The Redis block that joins them, why each call lives on one node, and what a node crash costs.'
 seoTitle: 'Multi-Node LiveKit with Redis: Config and Node Failure | Mahimai'
 keywords:
@@ -16,15 +17,17 @@ keywords:
   - 'LiveKit node failure'
 proficiency: 'Intermediate'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 faq:
   - q: 'Does LiveKit send audio through Redis?'
     a: 'No. Redis carries coordination state: which node hosts each room, messages routed between nodes, and the bus the SIP service uses to reach the cluster. Audio flows directly to the node that owns the room, so a modest managed Redis handles a large fleet.'
   - q: 'What happens to active calls when a LiveKit node dies?'
-    a: 'They drop. Each room lives on exactly one node, so the calls hosted on a failed node end with it. Multi-node LiveKit reduces blast radius and adds capacity; recovery is an application concern, usually a cheap redial.'
+    a: 'They drop. Each room lives on exactly one node, so the calls hosted on a failed node end with it. Multi-node LiveKit reduces blast radius and adds capacity; recovery requires testing the client reconnect or telephony redial path.'
   - q: 'How do I turn a single LiveKit server into a cluster?'
     a: "Add the same redis block to every node's livekit.yaml and point the SIP service at the same Redis address. With Redis configured, LiveKit switches to distributed mode automatically. Each node still needs its own public IP and its own firewall rules for the RTP range."
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Practice from '../../../components/course/Practice.astro';
 import DiagramEmbed from '../../../components/course/figures/DiagramEmbed.astro';
@@ -33,15 +36,13 @@ Your one LiveKit node is filling up. Turning it into two takes a two-line `redis
 
 That second node changes the architecture more than going from two nodes to ten ever will. Rooms now have a home, every node needs its own public address, and a crashed machine takes its calls with it.
 
-By the end you'll have the config for a two-node cluster, know exactly what Redis carries, and know what a node failure costs in live calls before it happens to you.
-
-## What does Redis do in a LiveKit cluster?
+## Redis Coordination
 
 Redis turns a set of LiveKit servers into one cluster. It holds room state so that any node can answer where a room lives, it routes messages between nodes, and it doubles as the bus the SIP service uses to reach the cluster.
 
 When Redis is configured, LiveKit switches to [distributed mode](https://docs.livekit.io/transport/self-hosting/distributed/) on its own. Each node then reports its stats to Redis periodically, which is how the node that receives a create-room request can pick an available node to host it.
 
-All of that is coordination state. Audio never touches Redis. That is why a modest managed instance handles a large fleet, and why Redis sizing is almost never your problem.
+All of that is coordination state. Audio never touches Redis. That is why a modest managed instance handles a large fleet, and why Redis latency, availability and connection limits still need monitoring.
 
 <DiagramEmbed
   id="livekit-multi-node"
@@ -51,7 +52,7 @@ All of that is coordination state. Audio never touches Redis. That is why a mode
   views: audio goes straight to the node that owns the room.
 </DiagramEmbed>
 
-## The config: the same Redis block on every node
+## Cluster Configuration
 
 Every node runs the same `livekit.yaml`, and the only multi-node addition is the `redis` block. Here is a two-node-ready config, using the key names from LiveKit's [config-sample.yaml](https://github.com/livekit/livekit/blob/master/config-sample.yaml):
 
@@ -74,7 +75,7 @@ keys:
 
 If you run Redis with Sentinel or in cluster mode, the same block takes `sentinel_master_name` and `sentinel_addresses`, or `cluster_addresses`, in place of `address`. The SIP service has its own `redis` block. It must hold the same address ([lesson 7](/learn/100x/livekit/livekit-sip-self-hosted) covers that config).
 
-## Room affinity: every call lives on one node
+## Room Placement
 
 A room is hosted on exactly one node, chosen when the room is created. For voice, that means per call. Each call is placed once and stays where it was placed.
 
@@ -82,19 +83,19 @@ Signalling is looser: a client's WebSocket can land on any node, and that node p
 
 This is what makes calls-per-node the natural capacity unit, and the autoscaling lesson in [unit 5](/learn/100x/livekit#unit-5), [choosing the autoscaling signal](/learn/100x/livekit/voice-autoscaling-signal), builds directly on it.
 
-## Why every node needs its own public address
+## Node Reachability
 
 Media flows to the node that owns the room, so each node must be reachable directly on its RTP range. RTP has no shared front door.
 
 In practice, per node:
 
 - a public IP, advertised by `use_external_ip: true` (or set explicitly with `node_ip`)
-- a firewall rule for the UDP range that matches `port_range_start` and `port_range_end` exactly, as in [lesson 5](/learn/100x/livekit/self-host-livekit-aws)
+- a firewall rule for the UDP range that covers `port_range_start` through `port_range_end`, as in [lesson 5](/learn/100x/livekit/self-host-livekit-aws)
 - the ICE TCP port (`7881`) open to the internet
 
 Signalling on port 7880 is the one piece that can sit behind a shared load balancer, because any node can accept a client's WebSocket. The lack of a media front door resurfaces with force in [scaling inbound SIP](/learn/100x/livekit/scaling-inbound-sip), when carriers expect a single address.
 
-## What happens to calls when a node dies?
+## Node Failure
 
 The calls on that node drop. Node death is call death. The rooms on a failed node end, and nothing moves them to a survivor mid-call.
 
@@ -102,13 +103,13 @@ So treat multi-node as more capacity and a smaller blast radius, not as failover
 
 A planned shutdown is different. On `SIGTERM`, a LiveKit node enters draining mode: active rooms keep running, new rooms are refused, and the process exits once the last participant leaves. Deploys depend on that behaviour, and [zero-downtime deploys](/learn/100x/livekit/voice-zero-downtime-deploys) builds the procedure on it.
 
-## Common mistake: one component on a different Redis
+## Configuration Drift
 
-Point every component at the same Redis and the cluster assembles itself: nodes register, the SIP service routes calls into rooms. Most multi-node problems trace back to one component holding a different Redis URL.
+Point the SFU and SIP services at the same Redis and the cluster assembles itself: nodes register, the SIP service routes calls into rooms. A mismatched Redis endpoint is one configuration error worth checking early.
 
 The symptoms (jobs not dispatching, SIP calls landing nowhere) look like anything except a config string. Before you debug anything else on a new cluster, print the `redis.address` from every node's config and from the SIP service's config, and diff them.
 
-## Checklist: from one node to two
+## Cluster Exercise
 
 1. Provision one Redis reachable from every LiveKit node and the SIP service.
 2. Add the identical `redis` block to every node's `livekit.yaml`.
@@ -125,3 +126,8 @@ The symptoms (jobs not dispatching, SIP calls landing nowhere) look like anythin
 </Practice>
 
 Next: [self-hosting the SIP service](/learn/100x/livekit/livekit-sip-self-hosted), the component that turns these rooms into phone calls and the first one that will need that shared Redis address.
+
+<Checkpoint
+  question="Does adding a second SFU migrate active rooms off the first?"
+  answer="No. In this self-hosted topology a room stays on its assigned node. New capacity helps new rooms; test reconnect and recovery separately."
+/>

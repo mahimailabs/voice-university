@@ -1,11 +1,12 @@
 ---
+lessonId: livekit-lesson-013
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 13
 unit: 3
-unitTitle: 'Agent workers in production'
-title: 'LiveKit worker load threshold: the worker that stopped at exactly 141 jobs'
-navTitle: 'Worker load thresholds'
+unitTitle: 'Agent Workers'
+title: 'Load Thresholds'
+navTitle: 'Load Thresholds'
 summary: 'A worker stopped taking jobs at exactly 141, with no errors and no restarts. How a fixed count points at a counter, the 0.70 threshold, and the log lines that told us.'
 seoTitle: 'LiveKit Worker Load Threshold: Stopped at 141 Jobs | Mahimai'
 keywords:
@@ -22,8 +23,10 @@ faq:
   - q: 'How do I find a leaked job counter from logs?'
     a: 'Pair the events that should come in pairs. If you have N lines saying a job was terminated and zero saying a job ended, the jobs never returned and whatever runs on return, such as a counter decrement, never ran.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 
@@ -31,11 +34,11 @@ A worker stopped receiving jobs after 141 of them. It stayed registered, stayed 
 
 No error. No crash. Just a worker that the server had stopped talking to.
 
-By the end of this page you'll know how LiveKit decides a worker is full, why a repeatable failure count is the best clue you can get, and a one-line log check that would have found this bug on the first capture.
+The numbers below are saved case-study results. The original raw run bundle is not included here, and this review did not rerun the fleet experiment.
 
-## Why a repeatable count points at a counter
+## Counter Symptoms
 
-When a failure repeats at the same count, something is counting. A leak drifts, a race is random, and a timeout follows the clock; a counter stops at the same number every time.
+When a failure repeats at the same count, something is counting. A stable boundary is a useful counter or limit hypothesis, although leaks and races can also produce repeatable counts.
 
 It reproduced at 140, 141, and 141, across windows of 56 minutes and 15 minutes, at two different concurrencies. Different durations, different load, the same count. It was driven by count alone, which rules out most of what you would normally suspect.
 
@@ -45,9 +48,9 @@ It reproduced at 140, 141, and 141, across windows of 56 minutes and 15 minutes,
   thirty-second division that identified the bug outright.
 </Pull>
 
-## The arithmetic: 141 / 200 = 0.705
+## Threshold Arithmetic
 
-The worker was configured with a maximum of 200 jobs. It reports load as a fraction of that maximum, and the server stops assigning work to a worker above 0.70.
+This custom worker was configured with a maximum of 200 jobs; that is not a LiveKit default. It reports load as a fraction of that maximum, and the server stops assigning work to a worker above 0.70.
 
 ```text
 141 / 200 = 0.705
@@ -62,7 +65,7 @@ That is the whole bug. The counter had reached the threshold and the server had 
 
 Nothing was wrong with the server. It did what it was told by a number that had stopped being true.
 
-## How LiveKit decides a worker is full
+## Load Reporting
 
 Every worker reports a load value between 0 and 1, and the server stops dispatching to it above a threshold. The worker computes the number; the server only reads it. Both knobs are listed in the [Python API reference](https://docs.livekit.io/reference/python/livekit/agents/index.html) under the worker options.
 
@@ -70,15 +73,15 @@ In the Python agents framework these are two [server options](https://docs.livek
 
 This is the [worker lifecycle](/learn/100x/livekit/livekit-agent-worker-lifecycle) again: the server trusts what workers report. In [the shutdown lesson](/learn/100x/livekit/livekit-agent-shutdown-leak) the missing report was completion. Here it was load.
 
-## Why the counter never came down
+## Counter Cleanup
 
-Each assignment incremented an active job counter. A deferred decrement was supposed to run when the job's goroutine finished.
+The original case involved a custom Go worker, not the Python AgentServer example. Each assignment incremented its active job counter. A deferred decrement was supposed to run when the job's goroutine finished.
 
 The termination handler logged the event and never cancelled the job, so the job's loop kept waiting on a context that only closed when the whole process did. No job ever returned, so no decrement ever ran.
 
 So the fix is in the termination path: whatever handles it has to end the job, and then the code on the return path (the decrement) gets to run.
 
-## Pair your log lines
+## Paired Events
 
 The log said so all along, and we read past it twice: 141 lines saying the server had terminated a job, and zero lines saying a job had ended. All 141 ended lines appeared at once on restart, the first time anything cancelled that context.
 
@@ -92,7 +95,7 @@ comm -23 \
 
 Adapt the two patterns to your own log format. Any output is a job that never finished.
 
-## Common mistakes
+## Dispatch Checks
 
 - **Blaming the configured maximum.** The maximum was 200. The worker stopped at 141 because of the threshold applied to it.
 - **Instrumenting before dividing.** The failure count divided by the job maximum named the bug in thirty seconds. Do that division first.
@@ -100,3 +103,8 @@ Adapt the two patterns to your own log format. Any output is a job that never fi
 - **Trusting "connected" as healthy.** A worker can be registered and connected while receiving nothing. Track jobs assigned per worker over time, and alert when it flattens while traffic continues.
 
 Next: [how to load test a voice agent](/learn/100x/livekit/voice-agent-load-testing) so that failures like this show up in a test run before they show up in production.
+
+<Checkpoint
+  question="Why would a 200-job worker stop receiving work after 141 jobs?"
+  answer="With the case study\u2019s active-count load function and a 0.70 threshold, 141 / 200 is 0.705. A counter that never decrements makes completed jobs look active."
+/>

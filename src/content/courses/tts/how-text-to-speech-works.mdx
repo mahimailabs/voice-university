@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-012
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 12
 unit: 4
-unitTitle: 'The acoustic model'
-title: 'How text-to-speech works: cascade, end-to-end and codec-token models'
-navTitle: 'How TTS works'
+unitTitle: 'Acoustic Modelling'
+title: 'TTS Architecture'
+navTitle: 'TTS Architecture'
 summary: 'The model we trained is 3.6% of our synthesis time; the vocoder is the other 96.4%. The three families of TTS model, and where each spends its effort.'
 seoTitle: 'How Text-to-Speech Works: The Three Model Families | Mahimai'
 keywords:
@@ -19,23 +20,23 @@ faq:
   - q: 'What are the stages of a text-to-speech system?'
     a: 'A cascaded system has three: text analysis (normalisation, then characters or phonemes), an acoustic model that predicts a mel spectrogram, and a vocoder that turns the mel spectrogram into a waveform. End-to-end models such as VITS fold all three into one network, and codec-token models such as Magpie-TTS predict discrete audio codec tokens instead of a mel spectrogram.'
   - q: 'What is the difference between autoregressive and parallel TTS?'
-    a: 'An autoregressive model generates each output step conditioned on the ones before it, so time grows with output length and it can lose its place in the text. A parallel model predicts a duration for each input symbol, then produces every frame at once, which is fast and cannot skip text it was given, at the cost of having to predict durations and prosody explicitly.'
+    a: 'An autoregressive model generates each output step conditioned on the ones before it, so time grows with output length and it can lose its place in the text. A parallel model predicts a duration for each input symbol, then produces every frame at once, which avoids attention traversal but does not guarantee intelligibility, at the cost of having to predict durations and prosody explicitly.'
   - q: 'Which kind of TTS model should I use for a voice agent?'
     a: 'Start from the failure you can tolerate. Parallel cascades are fast and stable but need a good text front end. Codec-token models add voice cloning and style control, and need alignment safeguards against skipping or repeating. Whatever you pick, measure output word error rate and latency on your own text before trusting a demo.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
 import Figure from '../../../components/course/Figure.astro';
 import ArParallel from '../../../components/course/figures/ArParallel.astro';
 import Practice from '../../../components/course/Practice.astro';
 
-The model we trained from scratch has 1,231,185 parameters and takes 3.6% of our synthesis time. The pretrained vocoder behind it takes the other 96.4%. Most of the compute goes to the stage we did not write.
+Text becomes symbols, symbols become acoustic features, and a vocoder makes the waveform. This is the cascade we use. VITS and codec-token models organise the same job differently.
 
-That split is the first thing to understand about any TTS system. By the end of this page you will know the three families of model in use today, how autoregressive and parallel generation differ, and exactly where our tiny model sits among them.
-
-## How does text-to-speech work?
+## Synthesis Pipeline
 
 A classic TTS system is a cascade of three stages: text analysis, an acoustic model, and a vocoder. NVIDIA's [NeMo TTS documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/intro.html) describes it the same way: text analysis turns graphemes into phonemes, the acoustic model "generates acoustic features", and the vocoder "synthesizes waveform audios from acoustic features".
 
@@ -51,7 +52,7 @@ A classic TTS system is a cascade of three stages: text analysis, an acoustic mo
   waveform.
 </CourseFigure>
 
-## Why do TTS models split at the mel spectrogram?
+## Mel Interface
 
 Because a mel spectrogram is a small, learnable target. At the LJSpeech vocoder's settings it is 80 numbers every 256 samples, about 86 frames a second, against 22,050 samples a second of raw audio.
 
@@ -59,7 +60,7 @@ That compression lets the acoustic model be small. Ours predicts 80 values per f
 
 The split doubles as a map for debugging. Wrong word, wrong stress or wrong pacing is the text front end or the acoustic model. Artefacts on every sentence, including the easy ones, point at the vocoder or at a mel recipe mismatch between the two stages, measured in unit 5.
 
-## What are end-to-end and codec-token TTS models?
+## Model Families
 
 They are the two other families. End-to-end models go from symbols straight to a waveform in one network. Codec-token models replace the mel spectrogram with discrete tokens from a neural audio codec and predict them the way a language model predicts words.
 
@@ -73,7 +74,7 @@ They are the two other families. End-to-end models go from symbols straight to a
 | End-to-end  | Piper (VITS)              | Waveform               | Ran the published LJSpeech voice               |
 | Codec token | Magpie-TTS                | Codec tokens           | Described from NeMo's docs                     |
 
-## What is the difference between autoregressive and parallel TTS?
+## Generation Strategies
 
 An autoregressive model produces output one step at a time, each step conditioned on the steps before it. A parallel model decides how long each input symbol lasts, then produces every frame in one pass.
 
@@ -83,9 +84,9 @@ An autoregressive model produces output one step at a time, each step conditione
 
 Autoregressive generation was how neural TTS started: [Tacotron 2](https://arxiv.org/abs/1712.05884) predicts mel frames one after another, attending back to the text to find its place. Generation time grows with output length, and when attention loses its place the model can skip, repeat or trail off. Magpie-TTS is autoregressive too, and [NeMo adds a CTC loss and attention priors](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/magpietts.html) to keep its cross-attention moving monotonically through the text.
 
-Parallel models, starting with FastSpeech, take the other trade. Output length is fixed by predicted durations before any audio exists, so the model cannot lose its place, and everything runs as one batch of matrix operations. The cost is that durations, and pitch if you want control over it, must be predicted explicitly. [Duration prediction](/learn/100x/tts/tts-duration-prediction) shows how.
+Duration-based parallel models such as FastSpeech take the other trade. Output length is fixed by predicted durations before any audio exists, which avoids attention traversal during frame generation. Incorrect durations or decoding can still lose audible content. The cost is that durations, and pitch if you want control over it, must be predicted explicitly. [Duration prediction](/learn/100x/tts/tts-duration-prediction) shows how.
 
-## Where does our tiny model fit?
+## Teaching Model
 
 It is a parallel cascade: FastSpeech-shaped, character input, 80-bin mel output, pretrained HiFi-GAN vocoder. That is the simplest design that trains quickly on a CPU, which is why we chose it.
 
@@ -97,5 +98,10 @@ That choice also explains the 3.6% figure. A parallel acoustic model over a few 
   sentences, measured with a transcription check. A vendor demo script is the one input every model
   handles well.
 </Practice>
+
+<Checkpoint
+  question="Which stage should you isolate when every output is distorted?"
+  answer="Try copy synthesis with the exact vocoder recipe. If that is also distorted, investigate the vocoder or feature path before the acoustic model."
+/>
 
 Next: [duration prediction](/learn/100x/tts/tts-duration-prediction), the piece that makes a parallel model possible.

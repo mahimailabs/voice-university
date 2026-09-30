@@ -1,12 +1,13 @@
 ---
+lessonId: livekit-lesson-016
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 16
 unit: 4
-unitTitle: 'Load testing voice agents'
-title: 'Per-call resource accounting: size a voice fleet from slopes'
-navTitle: 'Per-call resource accounting'
-summary: '18.3 media ports, 122 MB of memory and 38.4 file descriptors per call. Three slopes that predicted a 550-call ceiling before any test reached it.'
+unitTitle: 'Load Testing'
+title: 'Resource Accounting'
+navTitle: 'Resource Accounting'
+summary: '18.3 media ports, 122 MB of memory and 38.4 file descriptors per call. How to check the units, baseline and scope before converting a slope into a capacity claim.'
 seoTitle: 'Per-Call Resource Accounting for Voice Fleets | Mahimai'
 keywords:
   - 'per-call resource accounting'
@@ -22,8 +23,10 @@ faq:
   - q: 'Why count failed calls instead of tracking a failure ratio?'
     a: 'A fleet-wide ratio cannot distinguish every call being slightly degraded from a few calls being completely dead. Counting the calls that show the defect catches the bimodal case, which is how voice usually fails.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Practice from '../../../components/course/Practice.astro';
 
@@ -35,15 +38,15 @@ Here is what one concurrent call cost on a production LiveKit fleet we measured:
 | Worker memory, PSS | 122 MB                                     |
 | File descriptors   | 38.4                                       |
 
-Three numbers. From them we predicted the media tier's ceiling near 550 calls before any test got there, picked the instance family for the workers, and set the descriptor limit in the service file. By the end of this lesson you will know how to produce a table like this for your own fleet, and the arithmetic that turns it into node counts.
+These are historical report values. The memory measurement illustrates proportional accounting; the port counter needs further verification. The method below is how to collect inputs you can safely size from.
 
-## Why fleet-level metrics fail a voice system
+## Per-Call Metrics
 
 Fleet metrics answer whether the system is healthy on average, and nothing about a voice fleet fails on average. A node runs out of ports at a specific call count. A call either carries audio or it does not. The questions that matter for sizing are per call: what does the next call cost, and which budget does it exhaust first?
 
 So the accounting has one shape everywhere. Measure each resource per call, as a slope against concurrency. Count failures as instances. Everything else in [unit 4](/learn/100x/livekit#unit-4) and [unit 5](/learn/100x/livekit#unit-5) is built on those two habits.
 
-## What a slope gives you that a reading cannot
+## Marginal Cost
 
 A slope is the marginal cost of one more call, fitted across many samples. It does three jobs a point reading cannot.
 
@@ -71,27 +74,21 @@ slope, intercept = linear_regression(calls, pss_mb)
 print(f"{slope:.0f} MB per call, {intercept:.0f} MB baseline")
 ```
 
-## Worked example: from slopes to ceilings
+## Resource Budgets
 
-Divide each node budget by its slope and you get a ceiling. With our numbers:
+Subtract the idle baseline and headroom before dividing by the per-call slope. With the historical memory labels, `(30,000 - 1,549) / 122` gives about 233 calls before further headroom. That is a memory bound, not a demonstrated worker capacity.
 
-| Resource         | Slope         | Node budget           | Arithmetic               | Ceiling         |
-| ---------------- | ------------- | --------------------- | ------------------------ | --------------- |
-| Media ports      | 18.3 / call   | 10,001-port RTP range | 10,001 / 18.3            | ~550 calls      |
-| Worker PSS       | 122 MB / call | 30 GB                 | 30,000 / 122             | ~245 calls      |
-| File descriptors | 38.4 / call   | systemd default 1,024 | 100 calls x 38.4 = 3,840 | limit must rise |
+The saved 18.3 “media ports” slope needs its collector and allocation scope verified. The reported count exceeded the configured range; [Port Capacity](/learn/100x/livekit/livekit-port-exhaustion) explains why that prevents treating it as a unique-port budget.
 
-Each row drove a decision. The port row said the SFU would stop carrying audio near 550 calls, well before any load test reached that step, and [the port exhaustion lesson](/learn/100x/livekit/livekit-port-exhaustion) shows the test that confirmed it. The PSS row said memory was not the worker constraint, so CPU was, and the instance family changed. The descriptor row said a hundred concurrent calls would want roughly 3,840 descriptors against a default of 1,024, so the limit was raised with a measurement behind it.
+Descriptor limits are per process. A total across the whole worker tree cannot be compared directly with a single process's `LimitNOFILE`. Inspect `/proc/PID/limits` and descriptor use for the parent and children separately.
 
-None of these needed the fleet to fail first. That is the payoff of measuring slopes early: the ceiling shows up in a spreadsheet long before it can show up in an incident.
+## Failure Distribution
 
-## Count failing calls, never the ratio
-
-The companion habit is for failures. Count the calls that exhibited the defect. Do not report a fleet-wide ratio.
+The companion habit is for failures. Count the calls that exhibited the defect. Report both the failing-call count and its denominator; avoid replacing per-call checks with a ratio of aggregate packet totals.
 
 On one run the fleet received 99.8% as many RTP packets as it sent, while half the calls in a subset carried nothing. Both statements were true at once. An aggregate ratio cannot distinguish every call being slightly lossy from some calls being completely dead, so the number that should have raised the alarm read as proof of health. [The load test that reported 100% success](/learn/100x/livekit/voice-silent-failures) tells that story in full.
 
-Before you put any number on a dashboard, ask one question: can this number hide a bimodal failure? Averages, ratios, and percentiles over the whole fleet all can. Per-call counts cannot. That is why the alerting gate became "zero calls with zero inbound packets" instead of any threshold on any ratio.
+Before you put any number on a dashboard, ask one question: can this number hide a bimodal failure? Averages, ratios, and percentiles over the whole fleet all can. Per-call checks reveal more detail, provided they measure the failure you care about. That is why the alerting gate became "zero calls with zero inbound packets" instead of any threshold on any ratio.
 
 <Practice label="Before you size anything">
   Measure the slope for every resource on every tier once, write it in a table with its node budget,
@@ -100,3 +97,8 @@ Before you put any number on a dashboard, ask one question: can this number hide
 </Practice>
 
 Next: [bucket by the right timestamp](/learn/100x/livekit/load-test-time-bucketing), where the same failures, grouped by the wrong clock, told the opposite story about capacity.
+
+<Checkpoint
+  question="Why subtract the idle baseline before dividing a memory budget by the per-call slope?"
+  answer="The idle pool consumes memory before the first call. Only the remaining budget is available for incremental calls, and headroom reduces it further."
+/>

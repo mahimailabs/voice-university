@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="674" height="713" viewBox="-136 0 674 713" font-family="'DejaVu Sans Mono', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace" font-size="14px">
+  <defs>
+    <marker id="arrow-55555c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55555c"/>
+    </marker>
+    <marker id="arrow-55555c-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55555c"/>
+    </marker>
+  </defs>
+  <rect x="-136" y="0" width="674" height="713" fill="#fcfcfc"/>
+  <path d="M48 40 H136 a8 8 0 0 1 8 8 V502.8 a8 8 0 0 1 -8 8 H48 a8 8 0 0 1 -8 -8 V48 a8 8 0 0 1 8 -8 Z" fill="#fcfcfc" stroke="#95959d"/>
+  <g font-size="18px">
+  <text x="54" y="72.3" fill="#0a0a0a" text-anchor="start">Cascade</text>
+  </g>
+  <g transform="translate(68 88) scale(2)">
+    <path d="M12 2.6 L20.4 6.800000000000001 L12 11 L3.5999999999999996 6.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M3.5999999999999996 6.800000000000001 L12 11 L12 19.400000000000002 L3.5999999999999996 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M20.4 6.800000000000001 L12 11 L12 19.400000000000002 L20.4 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="18px">
+  <text x="92" y="164.3" fill="#0a0a0a" text-anchor="middle">STT</text>
+  </g>
+  <g transform="translate(68 251.4) scale(2)">
+    <path d="M12 2.6 L20.4 6.800000000000001 L12 11 L3.5999999999999996 6.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M3.5999999999999996 6.800000000000001 L12 11 L12 19.400000000000002 L3.5999999999999996 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M20.4 6.800000000000001 L12 11 L12 19.400000000000002 L20.4 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="18px">
+  <text x="92" y="327.7" fill="#0a0a0a" text-anchor="middle">LLM</text>
+  </g>
+  <g transform="translate(68 414.8) scale(2)">
+    <path d="M12 2.6 L20.4 6.800000000000001 L12 11 L3.5999999999999996 6.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M3.5999999999999996 6.800000000000001 L12 11 L12 19.400000000000002 L3.5999999999999996 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M20.4 6.800000000000001 L12 11 L12 19.400000000000002 L20.4 15.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="18px">
+  <text x="92" y="491.1" fill="#0a0a0a" text-anchor="middle">TTS</text>
+  </g>
+  <path d="M208 123.4 H350 a8 8 0 0 1 8 8 V419.4 a8 8 0 0 1 -8 8 H208 a8 8 0 0 1 -8 -8 V131.4 a8 8 0 0 1 8 -8 Z" fill="#fcfcfc" stroke="#95959d"/>
+  <g font-size="18px">
+  <text x="214" y="155.7" fill="#0a0a0a" text-anchor="start">Native audio</text>
+  </g>
+  <g transform="translate(255 251.4) scale(2)">
+    <path d="M6.6 2.6 L11 4.800000000000001 L6.6 7 L2.1999999999999993 4.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M2.1999999999999993 4.800000000000001 L6.6 7 L6.6 11.4 L2.1999999999999993 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M11 4.800000000000001 L6.6 7 L6.6 11.4 L11 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M17.4 2.6 L21.799999999999997 4.800000000000001 L17.4 7 L12.999999999999998 4.800000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M12.999999999999998 4.800000000000001 L17.4 7 L17.4 11.4 L12.999999999999998 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M21.799999999999997 4.800000000000001 L17.4 7 L17.4 11.4 L21.799999999999997 9.200000000000001 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M12 11.6 L16.4 13.8 L12 16 L7.6 13.8 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M7.6 13.8 L12 16 L12 20.4 L7.6 18.2 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M16.4 13.8 L12 16 L12 20.4 L16.4 18.2 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+  <g font-size="18px">
+  <text x="279" y="327.7" fill="#0a0a0a" text-anchor="middle">Audio model</text>
+  </g>
+  <g font-size="18px">
+  <text x="235.5" y="189.7" fill="#0a0a0a" text-anchor="start">Audio in</text>
+  </g>
+  <g font-size="18px">
+  <text x="230" y="407.7" fill="#0a0a0a" text-anchor="start">Audio out</text>
+  </g>
+  <g transform="translate(175 566.8) scale(2)">
+    <path d="M1.2 2.6 h12.4 v9.2 h-12.4 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M6.3 11.8 h2.2 v1.7 h-2.2 Z" fill="#57606a"/>
+    <path d="M4.2 13.5 h6.4 v1.1 h-6.4 Z" fill="#57606a"/>
+    <path d="M1.2 16.4 h12.4 v3.2 h-12.4 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M2.6 17.6 h7.8 v0.9 h-7.8 Z" fill="#57606a"/>
+    <path d="M16.2 2.6 h6.6 v17 h-6.6 Z" fill="#d6d9e6" stroke="#57606a" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M18.6 5.2 a0.9 0.9 0 1 0 1.8 0 a0.9 0.9 0 1 0 -1.8 0 Z" fill="#57606a"/>
+    <path d="M17.4 9.4 h4.2 v0.7 h-4.2 Z M17.4 11.4 h4.2 v0.7 h-4.2 Z M17.4 13.4 h4.2 v0.7 h-4.2 Z" fill="#57606a"/>
+  </g>
+  <g font-size="18px">
+  <text x="199" y="643.1" fill="#0a0a0a" text-anchor="middle">Application checks</text>
+  <text x="199" y="667.1" fill="#0a0a0a" text-anchor="middle">before business actions</text>
+  </g>
+  <line x1="92" y1="170" x2="92" y2="251.4" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <rect x="70" y="201.2" width="44" height="19" fill="#fcfcfc"/>
+  <text x="92" y="215.6" fill="#55555c" text-anchor="middle">text</text>
+  <line x1="92" y1="333.4" x2="92" y2="414.8" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <rect x="70" y="364.6" width="44" height="19" fill="#fcfcfc"/>
+  <text x="92" y="379" fill="#55555c" text-anchor="middle">text</text>
+  <line x1="279" y1="195.4" x2="279" y2="251.4" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <line x1="279" y1="333.4" x2="279" y2="389.4" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <path d="M 68 292.4 C -62.99 292.4, -56.49 619.8, 74.5 619.8" fill="none" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <rect x="-94.49" y="445.1" width="135" height="22" fill="#fcfcfc"/>
+  <g font-size="16px">
+  <text x="-26.99" y="461.7" fill="#55555c" text-anchor="middle">tool proposal</text>
+  </g>
+  <path d="M 338.5 292.4 C 469.6 292.4, 454.6 619.8, 323.5 619.8" fill="none" stroke="#55555c" stroke-width="1.6" marker-end="url(#arrow-55555c)"/>
+  <rect x="361.82" y="445.1" width="135" height="22" fill="#fcfcfc"/>
+  <g font-size="16px">
+  <text x="429.32" y="461.7" fill="#55555c" text-anchor="middle">tool proposal</text>
+  </g>
+</svg>

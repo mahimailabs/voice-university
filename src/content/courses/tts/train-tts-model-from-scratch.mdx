@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-014
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 14
 unit: 4
-unitTitle: 'The acoustic model'
-title: 'Train a TTS model from scratch on a CPU: 1.2M parameters in 268 seconds'
-navTitle: 'Train it from scratch'
+unitTitle: 'Acoustic Modelling'
+title: 'Acoustic Training'
+navTitle: 'Acoustic Training'
 summary: 'A 1,231,185-parameter model, 0.74 hours of LJSpeech, 268 seconds on a 4-core CPU. The code, the loss, the training log and the audio at every checkpoint.'
 seoTitle: 'Train a TTS Model from Scratch on a CPU | Mahimai'
 keywords:
@@ -21,23 +22,22 @@ faq:
   - q: 'Why does a tiny TTS model train so fast?'
     a: 'Two choices. Durations come from a forced aligner, so the model never has to learn alignment itself. And the decoder over mel frames is convolutional: our first design used attention over the roughly 600 mel frames of a clip and took several seconds per step on the CPU (measured while the aligner shared the CPU, so an order of magnitude only), while the convolutional version ran at 8.2 steps per second.'
   - q: 'How many training steps does a small TTS model need?'
-    a: 'On 0.74 hours of audio, our validation mel L1 went 0.4643, 0.435, 0.4268, 0.4282 at steps 550, 1,100, 1,650 and 2,200. It stopped improving after about 1,650 steps because there is too little data to keep learning from, so we kept the step 1,650 checkpoint.'
+    a: 'On 0.74 hours of audio, our validation mel L1 went 0.4643, 0.435, 0.4268, 0.4282 at steps 550, 1,100, 1,650 and 2,200. Step 1,650 had the lowest validation loss among those four checkpoints. The run alone does not establish why the loss then rose.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import TTSCheckpoints from '../../../components/islands/TTSCheckpoints';
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 import Practice from '../../../components/course/Practice.astro';
 import AudioSample from '../../../components/course/AudioSample.astro';
 import CourseFigure from '../../../components/course/figures/CourseFigure.astro';
 
-After 1,650 steps, 200 seconds of training on a 4-core cloud container with no GPU, a 1,231,185-parameter model was asked to say "please call me back when you have a moment". Whisper transcribed the result as "please pull me back when you have a moment."
+The saved run reached its lowest validation mel loss at step 1,650. Another 550 steps improved training loss but not validation loss. Listen to the checkpoints and inspect the model that produced them.
 
-One word wrong, from a model that started as random numbers 200 seconds earlier. The full run took 268 seconds, and its last checkpoint did worse.
-
-On this page you get the whole thing: the model class, the length regulator, the loss, the training log, and the audio at each of four checkpoints, with the transcription error rate next to each. Every excerpt is from the training script as we ran it.
-
-## What does "from scratch" cover here?
+## Training Scope
 
 The acoustic model, the stage that turns text into a mel spectrogram, starts from random weights and is trained by us. The two stages around it are pretrained, and each has a reason.
 
@@ -53,9 +53,9 @@ Our training set is small on purpose: 413 clips (0.74 h) that passed the alignme
   regulator in training come from the MMS aligner.
 </CourseFigure>
 
-## What does a FastSpeech-style model look like in code?
+## Model Architecture
 
-It is an encoder over characters, a duration predictor, a length regulator that stretches the character sequence to mel length, and a decoder over mel frames. Its layers, from the model class:
+The model has a character encoder, duration predictor, length regulator and mel decoder. These are selected implementation excerpts, not a complete runnable training script. They depend on helpers such as `Block`, `ConvBlock` and data-loading code that are not included here.
 
 ```python
 class TinyTTS(nn.Module):
@@ -82,9 +82,9 @@ def regulate(self, x, durs):
     return nn.utils.rnn.pad_sequence(seqs, batch_first=True), lens
 ```
 
-In training, `durs` are the aligner's durations. At inference they come from the duration predictor, rounded and clamped to at least one frame. [Duration prediction](/learn/100x/tts/tts-duration-prediction) covers why that one substitution makes the model unable to skip a word.
+In training, `durs` are the aligner's durations. At inference they come from the duration predictor, rounded and clamped to at least one frame. [Duration prediction](/learn/100x/tts/tts-duration-prediction) explains how that preserves symbol slots without guaranteeing intelligibility.
 
-## Which loss trains a TTS acoustic model?
+## Masked Losses
 
 Two terms, added with equal weight: an L1 distance between predicted and real mel frames, and a mean squared error on log durations. Both are masked so padding does not count.
 
@@ -101,7 +101,7 @@ Two details matter. The target mels are standardised with the training set's mea
 
 The optimiser is AdamW at a learning rate of 1e-3, warmed up linearly over the first 1,000 steps and then decayed linearly towards a 5% floor. Gradients are clipped at norm 1.0.
 
-## How long does it take to train a TTS model on a CPU?
+## CPU Training
 
 On our setup, 268 seconds for 2,200 steps at batch 8, which is 8.2 steps per second. The first version was far slower.
 
@@ -123,39 +123,18 @@ The run was 2,200 steps at batch 8 with a checkpoint every 550. Here is the trai
 
 The duration loss collapses fastest, from 1.39 to about 0.1 in 550 steps: predicting how long a letter lasts is the easy part. The mel loss keeps creeping down on training batches, while validation stops moving after step 1,650.
 
-## What does the model sound like at each checkpoint?
+## Checkpoint Audio
 
 At every checkpoint the script renders three fixed probe sentences, none of them in LJSpeech, and we transcribed them with Whisper base.en. Here is the same probe at each step. Press play.
 
-<AudioSample src="/audio/tts/tiny-step550.mp3" label="Step 550">
-  Probe: "this voice was trained from scratch on one small computer". Whisper heard "This device
-  must re-aint prostrach and when slow templator."
-</AudioSample>
+<TTSCheckpoints client:visible />
 
-<AudioSample src="/audio/tts/tiny-step1100.mp3" label="Step 1,100">
-  Same probe, 1,100 steps.
-</AudioSample>
-
-<AudioSample src="/audio/tts/tiny-step1650.mp3" label="Step 1,650">
-  Same probe, 1,650 steps. The checkpoint we kept.
-</AudioSample>
-
-<AudioSample src="/audio/tts/tiny-step2200.mp3" label="Step 2,200">
-  Same probe, 2,200 steps.
-</AudioSample>
-
-| Step  | Validation mel L1 | Output WER (3 probes) |
-| ----- | ----------------- | --------------------- |
-| 550   | 0.4643            | 0.67                  |
-| 1,100 | 0.435             | 0.29                  |
-| 1,650 | 0.4268            | 0.21                  |
-| 2,200 | 0.4282            | 0.35                  |
-
-Read the WER column with care. It is the mean over three probe sentences, 28 words in total, so one misheard word moves it by several points. It is indicative. In the larger [eval harness](/learn/100x/tts/tts-eval-harness), step 2,200 was worse than step 1,650 on held-out WER (22.9% against 19.7%) but better on the hard set (59.3% against 64.4%). Which checkpoint is best depends on the test set.
+These repeatedly inspected probes are development checks, not an untouched test set. Read the WER column with care. It is the mean over three probe sentences, 28 words in total, so one misheard word moves it by several points. It is indicative. In the larger [eval harness](/learn/100x/tts/tts-eval-harness), step 2,200 was worse than step 1,650 on held-out WER (22.9% against 19.7%) but better on the hard set (59.3% against 64.4%). Which checkpoint is best depends on the test set.
 
 <Pull>
-  Validation loss flattened after about 1,650 steps. With 0.74 hours of audio there is too little
-  data to keep improving, and step 2,200 scored worse on held-out mel L1 and probe WER.
+  Validation loss flattened after about 1,650 steps. Step 2,200 scored worse on validation mel L1
+  and probe WER. This run does not isolate whether more data, different optimisation or a different
+  model would help most.
 </Pull>
 
 <AudioSample src="/audio/tts/tiny-step1650-call-me-back.mp3" label="Step 1,650, second probe">
@@ -163,12 +142,17 @@ Read the WER column with care. It is the mean over three probe sentences, 28 wor
   you have a moment."
 </AudioSample>
 
-The errors on the kept checkpoint are substitutions ("pull" for "call"). On these three probes Whisper returned the same number of words as the input every time, which is what a duration-driven model should do. What it cannot do is read digits: `encode` keeps only letters, apostrophe and space, so "call 911" loses the number without an error. [Hallucinations](/learn/100x/tts/tts-hallucinations) returns to that.
+The errors on the kept checkpoint are substitutions ("pull" for "call"). On these three probes Whisper returned the same number of words as the input every time, but matching word counts on three probes is not a guarantee of complete speech. What it cannot do is read digits: `encode` keeps only letters, apostrophe and space, so "call 911" loses the number without an error. [Hallucinations](/learn/100x/tts/tts-hallucinations) returns to that.
 
 <Practice label="Picking a checkpoint">
   Save a checkpoint every quarter of your planned steps and render the same fixed probe sentences at
   each one. Pick by validation loss and probe WER together, and expect the last checkpoint not to be
   the best one when your data is under an hour.
 </Practice>
+
+<Checkpoint
+  question="Must the last checkpoint be the best?"
+  answer="No. Choose with a declared validation criterion. Keep the final test set separate and listen for failures the loss does not capture."
+/>
 
 Next: [FastPitch, pitch and energy](/learn/100x/tts/fastpitch-pitch-energy), the smallest change that gives this model control over intonation.

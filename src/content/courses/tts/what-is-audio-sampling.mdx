@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-001
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 1
 unit: 1
-unitTitle: 'Sound as numbers'
-title: 'What is audio sampling? Sample rate, Nyquist and bit depth for TTS'
-navTitle: 'Audio sampling'
+unitTitle: 'Audio Foundations'
+title: 'Audio Sampling'
+navTitle: 'Audio Sampling'
 summary: 'The median LJSpeech clip is 149,149 numbers. Sample rate, Nyquist and bit depth decide what they can hold, and one wrong rate breaks a TTS pipeline without an error.'
 seoTitle: 'What Is Audio Sampling? Sample Rate for TTS | Mahimai'
 keywords:
@@ -24,19 +25,19 @@ faq:
   - q: 'Why do machine learning pipelines convert audio to float32?'
     a: 'Files store integers (16-bit PCM in LJSpeech), but models do arithmetic in floating point. Loaders such as soundfile return float32 values between -1.0 and 1.0, which keeps the scale the same whatever the bit depth of the file.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Practice from '../../../components/course/Practice.astro';
 import Figure from '../../../components/course/Figure.astro';
 import SamplingFigure from '../../../components/course/figures/SamplingFigure.astro';
 import YouTube from '../../../components/course/YouTube.astro';
 
-The median clip in LJSpeech, the dataset we train on in this build, lasts 6.76 seconds and holds 149,149 numbers. Every clip is a one-dimensional array like that one. The text-to-speech model we build later never sees anything else: it has to produce a sequence of numbers that, played back at the right speed, a listener hears as speech.
+A waveform is an array of samples and a sample rate. Play the right samples at the wrong rate and the voice changes pitch and speed. Start here before computing features or training a model.
 
-By the end of this lesson you will know what those numbers are, which two settings (sample rate and bit depth) decide what they can hold, and how to catch the sample-rate bug that fails without an error.
-
-## What is audio sampling?
+## Audio Samples
 
 Audio sampling is measuring a continuous sound signal at fixed, evenly spaced moments and storing each measurement as a number. A microphone turns air pressure into a voltage; an analogue-to-digital converter reads that voltage many thousands of times a second.
 
@@ -50,7 +51,7 @@ The **sample rate** is how many readings per second. LJSpeech ships at 22,050 Hz
 
 So the arithmetic for the median clip is short: 6.76 s × 22,050 samples per second ≈ 149,149 samples. The shortest clip in the corpus is 1.11 s (about 24,500 samples) and the longest 10.10 s (about 222,600).
 
-## What does the Nyquist limit mean for speech?
+## Nyquist Limit
 
 The Nyquist limit is half the sample rate, and it is the highest frequency a sampled signal can represent. Anything above it cannot be stored; if it reaches the converter unfiltered, it folds back down as a false lower frequency (aliasing).
 
@@ -58,7 +59,7 @@ For LJSpeech that ceiling is 11,025 Hz. How much of the speech actually lives up
 
 That high band is where the trade-offs happen. The vocoder we use later only models frequencies up to 8,000 Hz, and a narrowband phone call cuts everything above 4,000 Hz. [Telephone audio for TTS](/learn/100x/tts/telephone-audio-for-tts) covers what that costs.
 
-## What does bit depth do?
+## Bit Depth
 
 Bit depth is how precisely each sample is stored. LJSpeech is [16-bit PCM](https://keithito.com/LJ-Speech-Dataset/), so each sample is one of 2^16 = 65,536 integer levels. The rounding to the nearest level adds a small noise floor; more bits push that floor lower.
 
@@ -73,7 +74,7 @@ peak = float(np.max(np.abs(audio)))
 
 Amplitude is usually quoted in decibels relative to full scale (dBFS). 0 dBFS is the largest value a file can hold, so real audio reads negative. The median LJSpeech clip peaks at -4.9 dBFS, a little below the ceiling. Two of the 13,100 clips touch |x| ≥ 0.999, one sample each, which is how we count clipping. The [LJSpeech lesson](/learn/100x/tts/ljspeech-dataset) goes through the rest of those corpus measurements.
 
-## Why does a sample rate mismatch break TTS silently?
+## Sample-Rate Mismatch
 
 A sample rate mismatch breaks TTS silently because a waveform file is only an array plus one number that says how fast to play it. Get that number wrong and every tool downstream still runs; the output is just wrong.
 
@@ -104,5 +105,10 @@ The alignment step is the one place we resample on purpose: the MMS aligner expe
   Then put an assertion at each boundary. It costs one line per stage and turns a silent failure
   into a stack trace.
 </Practice>
+
+<Checkpoint
+  question="Does changing a WAV header resample the audio?"
+  answer="No. It changes how quickly existing samples are played. Resampling computes a new sequence with the appropriate filtering."
+/>
 
 Next: [the mel spectrogram](/learn/100x/tts/mel-spectrogram), the picture of those 149,149 numbers that our model will actually learn to draw.

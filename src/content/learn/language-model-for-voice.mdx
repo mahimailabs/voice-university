@@ -1,60 +1,78 @@
 ---
-title: What makes a good language model for a voice agent
+title: Language models for voice agents
 label: Language model
 tag: LLM
-description: 'The language model is the brain that decides what a voice agent says. This guide covers why the smartest model on paper is often the wrong one on a phone call.'
+description: 'Evaluate response timing, spoken answers and tool decisions across the whole conversation.'
 order: 2
-updatedDate: 2026-08-19
+updatedDate: 2026-09-30
+cover: ./images/llm-cover.webp
+coverAlt: A caller and engineer check an order form before approving an action.
+socialImage: ./images/llm-social.jpg
 related:
   - { label: 'Turn detection', href: '/learn/components/turn-detection' }
   - { label: 'Latency calculator', href: '/tools/latency-calculator' }
   - { label: 'Production readiness review', href: '/services/production-readiness-review' }
 ---
 
-import Figure from '../../components/learn/Figure.astro';
-import LlmStreaming from '../../components/learn/figures/LlmStreaming.astro';
-import LlmSlowdown from '../../components/learn/figures/LlmSlowdown.astro';
+import LearnDiagram from '../../components/learn/LearnDiagram.astro';
+import Checkpoint from '../../components/learn/Checkpoint.astro';
 
-Pick the model everyone calls the smartest, and you will probably pick the wrong one for a phone call. Voice flips almost every rule that makes a model good in a chat window.
+The caller asks to move an appointment. A quick answer is useful only if the agent identifies the right booking, checks availability and reports the actual result.
 
-The language model is the brain of the agent: the software that takes the words the caller said and works out what to say back. On a chat screen, a brain that thinks for four seconds and then answers brilliantly is a great brain. On a call, four seconds of silence means the caller says "hello?" and starts over.
+Choose the language model on **completed tasks, grounded tool decisions and audible response time**. A fluent first sentence is only one part of that evaluation.
 
-## The only speed that really matters is how fast it starts talking
+## Response Timing
 
-When you type, you wait for the whole answer to appear. On a call it works differently: the agent starts speaking the first sentence out loud while the brain is still writing the third one. So the number that matters most is not how long the full answer takes to finish. It is how long before the very first word comes out.
+Time to first token measures the start of text generation. The caller hears audio later, after enough useful text reaches synthesis and playback. Track both timestamps rather than describing one as the other.
 
-That has a surprising result. A slower model that starts talking quickly beats a faster one that thinks in silence and then delivers the whole answer at once. The first one is already talking while the second is still deciding. (It does still have to keep up once it starts, or it will stall in the middle of a sentence, but the start is what the caller feels first.)
+A short acknowledgement can explain a genuine wait. It should not claim success before a tool finishes. Reasoning-heavy work may be appropriate for a difficult request; measure the quality improvement against the delay instead of disabling it for every turn.
 
-> On a call, a model that starts talking in a fifth of a second beats a smarter one that sits in silence for four seconds and then answers perfectly.
+[LiveKit’s speech documentation](https://docs.livekit.io/agents/multimodality/audio/) describes preemptive generation as starting a response before the end of the user turn is confirmed. That work may need cancellation when the input changes. Treat it as speculation, not permission to commit an action early.
 
-<Figure label="talking and thinking at once" filled>
-  <LlmStreaming />
-</Figure>
+## Spoken Output
 
-## It has to be brief, and that is about speed, not style
+Ask for answers the caller can act on: one question at a time, short clauses, and explicit units for amounts or times. Use longer explanations when the caller asks for them. A rigid two-sentence limit can remove necessary detail.
 
-A voice answer should be one or two sentences. This is not a matter of taste. Every extra sentence is extra seconds the caller has to sit through and cannot easily interrupt. And because they are listening, not reading, they cannot skim back over a long answer, so a rambling reply is simply hard to follow. A model that writes three tidy paragraphs when you wanted one line is unusable on the phone, however good the paragraphs are. The best ones can be kept to a sentence or two. Some simply cannot stop, and that is a real mark against them.
+Keep tool arguments separate from speech. Formatting such as Markdown should be handled before synthesis; whether a symbol is spoken depends on the TTS engine and text preprocessing.
 
-## It should talk like a person, not read out a document
+| Written output | Spoken alternative |
+| --- | --- |
+| Available slots: 09:00, 14:30, 16:00 | I have nine in the morning, two thirty, or four. Which works? |
+| Operation completed successfully | Your appointment is now Tuesday at two thirty. |
+| Error: upstream timeout | I haven’t confirmed that change yet. Let me check its status. |
 
-Chat models love to format things: bullet points, bold text, little headings, the odd emoji. On a screen that looks tidy. Read aloud it is a mess. The voice literally says "asterisk asterisk," or reads a bulleted list as one long breathless run-on. A model meant for voice writes plain spoken sentences. Check for this, because models built mainly for chat let that formatting slip into what they say constantly, and one stray list turns a competent agent into an obvious robot mid-call.
+These are wording examples. The success line is appropriate only after a confirmed result.
 
-## The "thinking" setting is usually a trap on the phone
+## Tool Boundaries
 
-Many models now have a "thinking" or "reasoning" mode that pauses to work things out before answering. It makes them smarter on hard problems. On a call it is usually a trap, because all that thinking happens in silence, before a single word comes out. The caller hears nothing for several seconds, assumes the line dropped, and either repeats themselves or hangs up. Unless the agent can say something like "let me check that for you" while it thinks, the thinking time is just silence the caller has to sit through.
+The model proposes a tool and its arguments. The application decides whether that operation is allowed. Check the authenticated caller, required fields, current state and business rules before execution.
 
-## It only knows what the ear passed along, and the ear makes mistakes
+<LearnDiagram name="llm" caption="A structured tool call is a proposal. Application checks and the tool result determine what the agent may claim." />
 
-In the usual setup, the brain never actually hears the caller. It only sees the text that the listening part (speech to text, the part that writes down what the caller said) passed along, and on a phone line that text has mistakes in it: a wrong digit, a name turned into a similar-sounding word. A good model notices when something does not add up and asks a quick "sorry, was that five or nine?" A model that confidently acts on a misheard account number is worse than one that pauses to check, because it fails without ever realising it failed. (Some newer all-in-one models do hear the audio directly. That is a different way of building the agent, covered in [speech to speech](/learn/components/speech-to-speech).)
+[Anthropic’s tool-use documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview) illustrates the client-tool loop: the model emits a call, your application executes it, and a result returns to the conversation. A valid argument schema does not establish that an account number or booking choice is correct.
 
-## It gets slower as the call goes on
+<Checkpoint question="The booking request timed out. Should the agent immediately submit it again?" answer="First determine whether the original request completed. A timeout leaves the outcome uncertain. Use a status lookup or an idempotency key supported by the booking system to avoid duplicate changes." />
 
-There is a quiet problem that only shows up on long calls. Before every reply, the brain re-reads the whole conversation so far, and that conversation keeps getting longer. So the agent that answered in a snap at the start slows down turn by turn, and by the fortieth back-and-forth it is dragging, right when a tired caller is least patient. The fix is for the system to remember the earlier part of the call instead of re-reading it from scratch every time. That helps a lot, though it never quite makes a long call as fast as a short one. Test late in a long call, not just at the start, or you will never see it.
+## Context Management
 
-<Figure label="it slows down as the call grows" filled>
-  <LlmSlowdown />
-</Figure>
+Longer context can add processing and cost, but every turn does not necessarily reprocess the whole history from scratch. Providers may cache reusable prefixes; [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) is one concrete implementation.
 
-## The bottom line
+Test long calls with cache hits and misses. If you compact the history, preserve confirmed entities, unresolved questions, permissions and tool outcomes. A fluent summary that drops a corrected date is a functional regression.
 
-One last thing worth knowing: the model is often not even the slow part. The wait while the system decides you have finished talking, which is [turn detection](/learn/components/turn-detection), can eat more time than the brain does. So the model to choose is the one that starts talking quickly, stays brief, sounds like a person, and still holds up at the fortieth back-and-forth, not the one that tops a test. The [latency calculator](/tools/latency-calculator), a small tool on this site, shows where each part's share of the delay sits, and a [production readiness review](/services/production-readiness-review) measures it on your own setup.
+## Failure Recovery
+
+Include missing tool results, conflicting records, revised [STT hypotheses](/learn/components/speech-to-text) and caller corrections in your evaluation. The agent should distinguish “not found,” “failed” and “outcome unknown.” They require different next steps.
+
+After an interruption, use the portion of the reply actually played when deciding what the caller knows. Generated text may include sentences that never reached the speaker. Coordinate this with [turn handling](/learn/components/turn-detection).
+
+## Evaluation Plan
+
+| Scenario | Measure |
+| --- | --- |
+| Routine request | Task completion and end-to-end response delay |
+| Ambiguous identifier | Targeted clarification before the action |
+| Tool timeout | Correct handling of an uncertain outcome |
+| Late-call correction | Updated state and correct tool arguments |
+| Caller interruption | No claim that unheard instructions were delivered |
+
+Run the same scenarios for each candidate with the same tool contracts. Keep transcripts, proposed arguments, executed operations and returned results. Use the [latency calculator](/tools/latency-calculator) for planning; use call traces for the final decision.

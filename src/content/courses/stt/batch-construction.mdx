@@ -1,0 +1,55 @@
+---
+lessonId: stt-lesson-007
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 7
+unit: 2
+unitTitle: "Training Data"
+title: "Batch Construction"
+navTitle: "Batch Construction"
+summary: "Pad variable-length audio without letting padding become training evidence."
+seoTitle: "Batch Construction for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+A batch needs rectangular tensors, but utterances have different frame counts. The solution is to pad the feature sequences and carry their true lengths through every stage that changes time resolution.
+
+## Batch Shapes
+
+```python
+x = pad_sequence([r['x'] for r in examples], batch_first=True)
+input_lengths = torch.tensor([len(r['x']) for r in examples])
+y = torch.cat([r['y'] for r in examples])
+target_lengths = torch.tensor([len(r['y']) for r in examples])
+```
+
+The lab packs targets end to end. The target-length vector tells the loss how to divide that stream back into examples. Padding targets with blank symbols would change the target sequence rather than merely filling space.
+
+## Length Accounting
+
+Our two stride-two convolutions each produce `ceil(length / 2)` frames. The code computes this using integer arithmetic:
+
+```python
+output_lengths = ((input_lengths + 1) // 2 + 1) // 2
+```
+
+Those are the lengths passed to CTC. The bidirectional GRU uses packed sequences so its backward pass does not treat padded frames as later audio. The convolution still has its declared boundary padding; the mask does not remove that architectural choice.
+
+[PyTorch's CTC interface](https://docs.pytorch.org/docs/2.14/generated/torch.nn.CTCLoss.html) specifies the log-probability and length inputs. Keep a tiny batch where you can inspect all dimensions before running the full experiment.
+
+## Invalid Alignments
+
+A target with adjacent repeated symbols needs separator frames under CTC. For example, `77` cannot be represented by only two consecutive frames labelled seven: they collapse to one. More aggressive time downsampling can make some targets impossible.
+
+<Checkpoint question="The target has three characters and the encoder has three frames. Is alignment always possible?" answer="No. Adjacent repeated characters need intervening blanks. Check repeated pairs as well as total target length, and treat non-finite loss as an error rather than hiding it." />
+
+Your output is one batch with four inspected tensors: features, input lengths, targets and target lengths. [Character Tokens](/learn/100x/stt/character-tokens) explains the vocabulary; [CTC Alignment](/learn/100x/stt/ctc-alignment) explains the collapse rule.

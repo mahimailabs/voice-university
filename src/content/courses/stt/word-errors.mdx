@@ -1,0 +1,52 @@
+---
+lessonId: stt-lesson-016
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 16
+unit: 5
+unitTitle: "Recognition Evaluation"
+title: "Word Errors"
+navTitle: "Word Errors"
+summary: "Calculate edit distance with an explicit tokenisation policy, and distinguish digit error rate from WER."
+seoTitle: "Word Errors for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+Error rate depends on what counts as a token. This lab treats each digit as one token. It therefore reports digit error rate: the minimum number of insertions, deletions and substitutions divided by the number of reference digits.
+
+For natural-language WER, tokenize words under a declared policy instead. Do not label a character-level score as WER simply because the same edit-distance algorithm computes both.
+
+## Try Scoring
+
+<STTLab mode="errors" client:load />
+
+The interactive example is constructed. It is separate from the measured training results and allows empty hypotheses so deletion behaviour remains visible.
+
+## Aggregate Correctly
+
+```python
+errors = sum(edits(r['reference'], r['hypothesis']) for r in predictions)
+reference_digits = sum(len(r['reference']) for r in predictions)
+digit_error_rate = errors / reference_digits
+```
+
+This weights every reference digit equally. Averaging individual sequence error rates would give a one-digit example the same weight as a three-digit example and can produce a different number. Keep the numerator and denominator in the report.
+
+Our saved evaluation contains 69 edits across 256 reference digits: 26.953125%. The model can insert extra digits, so edit rates are not mathematically capped at 100%.
+
+## Empty References
+
+A zero-length reference needs a separate policy because division by zero is undefined. The generated training task contains no empty targets. To evaluate silence hallucinations, add explicitly labelled silence clips and report their false emissions separately.
+
+<Checkpoint question="Could a decoder exceed 100% error without a scoring bug?" answer="Yes. Insertions can make the edit count larger than the number of reference tokens. Inspect the numerator and the actual hypotheses rather than clipping the percentage." />
+
+The [normalisation case study](/blog/the-normaliser-that-scored-itself) shows another way scores can mislead. Pair this metric with [Entity Accuracy](/learn/100x/stt/entity-accuracy), and retain raw strings in the [Evaluation Harness](/learn/100x/stt/evaluation-harness).

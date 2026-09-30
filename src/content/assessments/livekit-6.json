@@ -1,0 +1,43 @@
+{
+  "course": "livekit",
+  "unit": 6,
+  "version": "1",
+  "questions": [
+    {
+      "id": "livekit-6-1",
+      "prompt": "A call connects but the caller hears silence. Which evidence is most useful?",
+      "options": [
+        "Trace received media, agent output and delivered playback",
+        "Only a successful SIP response",
+        "Only the page\u2019s uptime"
+      ],
+      "correct": 0,
+      "explanation": "Trace both directions and each boundary. Control-plane success can coexist with silent media.",
+      "lesson": "/learn/100x/livekit/voice-silent-failures"
+    },
+    {
+      "id": "livekit-6-2",
+      "prompt": "What should happen before terminating an instance with active calls?",
+      "options": [
+        "Restart immediately because HTTP health is green",
+        "Delete session state first",
+        "Stop admitting work and drain with a defined deadline"
+      ],
+      "correct": 2,
+      "explanation": "Admission and draining protect existing sessions. Test timeout and replacement behaviour rather than assuming seamless handoff.",
+      "lesson": "/learn/100x/livekit/voice-zero-downtime-deploys"
+    },
+    {
+      "id": "livekit-6-3",
+      "prompt": "What belongs in a hosting comparison beyond compute rental?",
+      "options": [
+        "Only average call duration",
+        "Bandwidth, supporting services and operational work",
+        "Only the cheapest advertised GPU"
+      ],
+      "correct": 1,
+      "explanation": "Compare the same workload scope and include costs needed to run and operate it.",
+      "lesson": "/learn/100x/livekit/self-hosted-livekit-cost"
+    }
+  ]
+}

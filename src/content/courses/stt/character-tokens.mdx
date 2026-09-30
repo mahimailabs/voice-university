@@ -1,0 +1,52 @@
+---
+lessonId: stt-lesson-008
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 8
+unit: 3
+unitTitle: "First Recognizer"
+title: "Character Tokens"
+navTitle: "Character Tokens"
+summary: "Build an explicit digit vocabulary with a separate CTC blank and reversible target encoding."
+seoTitle: "Character Tokens for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+The vocabulary is `_0123456789`. The underscore is our display symbol for CTC blank. It has index zero; the spoken digit zero has index one. Confusing those two would delete every zero from decoded output.
+
+## Encode Targets
+
+```python
+VOCAB = '_0123456789'
+text = '007'
+ids = [VOCAB.index(c) for c in text]
+assert ids == [1, 1, 8]
+assert ''.join(VOCAB[i] for i in ids) == text
+```
+
+The target encoder never inserts blank. Blank belongs to the frame-level output alphabet, where the model needs a way not to emit another target character.
+
+## Preserve Identity
+
+Store the exact ordered vocabulary with the model code or checkpoint metadata. A changed token order can produce a valid tensor of the same shape with the wrong interpretation. Shape checks will not catch it.
+
+For general transcription, the token set might contain letters, spaces or subword units. A larger vocabulary changes data requirements and decoding behaviour. This course's first model stays deliberately small so alignment and scoring remain inspectable.
+
+## Two Sequences
+
+Distinguish the target sequence `007` from a possible frame path such as `0 0 _ 0 _ 7 7`. The latter contains repeated frame decisions and blanks. Applying CTC collapse gives the target; joining every nonblank frame first would not.
+
+Try the next lesson's [CTC experiment](/learn/100x/stt/ctc-alignment) before changing the vocabulary. The [visual CTC explanation](https://distill.pub/2017/ctc/) is a useful companion for the mapping from paths to outputs.
+
+<Checkpoint question="Could blank and a space share the same token in a sentence recognizer?" answer="Not if spaces are meaningful output characters. Blank means no emission at a frame; a space is a character to preserve. They need distinct identities." />
+
+Your deliverable is a reversible encoder plus explicit checks for zero and repeated digits. Next, the [Acoustic Encoder](/learn/100x/stt/acoustic-encoder) produces one distribution over these eleven symbols at each output frame.

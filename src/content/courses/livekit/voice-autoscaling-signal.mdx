@@ -1,13 +1,14 @@
 ---
+lessonId: livekit-lesson-020
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 20
 unit: 5
-unitTitle: 'Finding the ceilings'
-title: 'Autoscaling voice infrastructure: CPU is the wrong signal'
-navTitle: 'Autoscaling on the right signal'
+unitTitle: 'Capacity Planning'
+title: 'Autoscaling Signals'
+navTitle: 'Autoscaling Signals'
 summary: 'A scale-in was requested against nodes holding 40 live calls each, because CPU looked idle. Autoscale a voice fleet on active calls per instance instead.'
-seoTitle: 'Autoscaling Voice Infrastructure: Why CPU Is Wrong | Mahimai'
+seoTitle: 'Voice Autoscaling: Call Counts, Capacity and Draining | Mahimai'
 keywords:
   - 'voice autoscaling'
   - 'LiveKit autoscaling'
@@ -16,43 +17,41 @@ keywords:
 proficiency: 'Advanced'
 faq:
   - q: 'What metric should a voice fleet autoscale on?'
-    a: 'Active calls per in-service instance. Media ports are linear in calls and CPU is roughly linear in calls, so one target on calls per instance keeps the fleet inside both ceilings at once.'
+    a: 'Active calls per in-service instance. Choose a target from measured per-node capacity, and also monitor per-node maxima, readiness and resource saturation.'
   - q: 'Why is average CPU a poor autoscaling signal for voice?'
     a: 'It cannot see the RTP port ceiling, which can arrive at the same load as the CPU target and fails without an error. It also reads low on nodes carrying many steady, long-lived calls, so a scale-in can target a node with live calls on it.'
   - q: 'Why should an idle node publish zero active calls?'
     a: 'With no datapoint, the target tracking alarm goes to insufficient data and scaling stops acting. Publishing zero keeps the metric continuous, so scale-in works when the fleet is quiet.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 import DiagramEmbed from '../../../components/course/figures/DiagramEmbed.astro';
 
 We watched a scale-in get requested against nodes holding 40 live calls each, because the groups were target-tracking average CPU and on those nodes CPU looked low. No calls dropped. A separate guard refused to terminate them, and that guard was the only reason.
 
-Both autoscaling groups on the fleet target-tracked average CPU. That is the obvious choice, and the easiest one to configure. For a media workload it is wrong. This lesson covers the three reasons (two of which we measured), the signal to use instead, and the exact CloudWatch and Auto Scaling configuration to publish it and scale on it.
+Both autoscaling groups on the fleet target-tracked average CPU. That is the obvious choice, and the easiest one to configure. CPU alone was insufficient for this workload. Use call counts with resource limits and draining, then verify the scaling policy under load.
 
-## Why CPU cannot see the ceiling that arrives first
+## Resource Ceilings
 
-The media nodes exhausted their RTP port range at roughly the same load where CPU reached 70%, and past that line calls connect and carry no audio while CPU looks fine throughout. A CPU trigger is structurally incapable of seeing the failure that actually hurts. [Port exhaustion](/learn/100x/livekit/livekit-port-exhaustion) has the measurement: 18.3 ports per call against a 10,001-port range.
+CPU is useful, but it does not cover every limit. Monitor network, transport allocations, worker memory and provider quotas too. The older port counter in this course is not a verified budget; [Port Capacity](/learn/100x/livekit/livekit-port-exhaustion) explains the distinction.
 
-## Long-lived calls make CPU read low
+## Scale-In Risk
 
-A node holding 150 five-minute calls can read low average CPU. The work of a voice call is steady packet relay, not bursts, and steady relay sits well under a CPU target. Scale in on that number and you terminate a node carrying live calls, which is the scale-in we watched against nodes holding 40 calls each.
+A node can have low CPU while holding calls. Removing it immediately still interrupts them. This is a drain-policy problem regardless of which scale-out metric you use.
 
-The third reason is simpler. A default is not advice. CPU target tracking is usually the first option offered because it is the easiest thing to configure, and nothing about that makes it fit a media workload. Choose the signal for the workload you run.
+Use a tested drain sequence and keep enough ready capacity for new arrivals. Scale-in protection helps with ordinary group scale-in; it does not prevent crashes, every replacement mechanism or explicit termination.
 
-## The signal to use: active calls per in-service instance
+## Scaling Metric
 
-Publish active calls per instance as a custom metric, and target-track it with metric math against the in-service instance count. Calls capture both ceilings at once. Ports are linear in calls at 18.3 per call, and CPU is roughly linear in calls too, so one trigger on a number the fleet already knows holds you inside both ceilings simultaneously. Calls per node is also the natural unit because a room lives on one node ([multi-node routing](/learn/100x/livekit/livekit-multi-node-redis) explains why).
+For a consistent workload, average active calls per ready instance is a useful planning signal. Choose the target from a verified per-node operating cap and scale-out delay.
 
-<DiagramEmbed
-  id="voice-autoscaling-signal"
-  title="Autoscaling a voice fleet on active calls per instance (interactive data-flow diagram)"
->
-  One signal the fleet already knows: active calls per in-service instance, with a guard that never
-  terminates a node holding calls.
-</DiagramEmbed>
+It does not protect the busiest node by itself. Rooms stay on their assigned node, so retain per-node saturation alarms, admission checks and drain state. Exclude or account for nodes that are counted as in service but not ready to accept work.
+
+The following AWS example sums one call-count sample per node per minute, then divides by the group's in-service count. Missing or duplicate samples distort it; alert on telemetry gaps separately rather than treating them as real zeros.
 
 ### Step 1: publish active calls from every instance, every minute
 
@@ -149,10 +148,15 @@ aws autoscaling put-scaling-policy \
   --target-tracking-configuration file://config.json
 ```
 
-`TargetValue` above is a placeholder. Set it below your per-node ceiling (400 calls on our SFU tier) by at least the calls that arrive while a new node boots. The [capacity model](/learn/100x/livekit/voice-capacity-model) walks through that lead-time arithmetic.
+`TargetValue` above is a placeholder. Set it below your per-node ceiling (400 is an illustrative operating cap here) by at least the calls that arrive while a new node boots. The [capacity model](/learn/100x/livekit/voice-capacity-model) walks through that lead-time arithmetic.
 
 ### Step 5: keep the guard
 
 Calls per instance tells the group how many nodes it needs. It does not tell the group which node is safe to remove, so keep a guard that never terminates a node holding calls. On AWS, [instance scale-in protection](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-instance-protection.html) is one way to build it: a node sets protection on itself while it carries calls and clears it when it is empty. Draining a node on purpose is covered in [zero-downtime deploys](/learn/100x/livekit/voice-zero-downtime-deploys).
 
 Next: [scaling inbound SIP](/learn/100x/livekit/scaling-inbound-sip), where adding nodes does nothing until the carrier knows about them.
+
+<Checkpoint
+  question="Does average calls per instance protect the busiest node?"
+  answer="No. Existing rooms stay on their node and placement can be uneven. Track per-node maxima, admission limits, startup time and drain state alongside the group average."
+/>

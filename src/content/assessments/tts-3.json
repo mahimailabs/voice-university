@@ -1,0 +1,43 @@
+{
+  "course": "tts",
+  "unit": 3,
+  "version": "1",
+  "questions": [
+    {
+      "id": "tts-3-1",
+      "prompt": "The input is an account code 0042. What should control its spoken form?",
+      "options": [
+        "The field\u2019s intended reading policy",
+        "A universal conversion to forty-two",
+        "Removing all zeros"
+      ],
+      "correct": 0,
+      "explanation": "Identifiers and quantities need different reading policies. Preserve the intended information.",
+      "lesson": "/learn/100x/tts/text-normalisation-tts"
+    },
+    {
+      "id": "tts-3-2",
+      "prompt": "A name is pronounced incorrectly. What is a useful controlled test?",
+      "options": [
+        "Increase every duration equally",
+        "Remove the name from evaluation",
+        "Compare its phoneme sequence with the intended pronunciation"
+      ],
+      "correct": 2,
+      "explanation": "Inspecting phonemes can localize a pronunciation issue before changing the acoustic model.",
+      "lesson": "/learn/100x/tts/grapheme-to-phoneme-g2p"
+    },
+    {
+      "id": "tts-3-3",
+      "prompt": "After adding a pronunciation override, what should you check?",
+      "options": [
+        "Only the model size",
+        "The target word in context and unaffected regression examples",
+        "Only the isolated replacement text"
+      ],
+      "correct": 1,
+      "explanation": "An override can behave differently in context or affect other inputs. Listen to both target and regression cases.",
+      "lesson": "/learn/100x/tts/tts-pronunciation-control"
+    }
+  ]
+}

@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-015
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 15
 unit: 4
-unitTitle: 'The acoustic model'
-title: 'FastPitch pitch and FastSpeech 2 energy predictors: the next step up'
-navTitle: 'FastPitch: pitch and energy'
+unitTitle: 'Acoustic Modelling'
+title: 'Pitch and Energy'
+navTitle: 'Pitch and Energy'
 summary: 'Our tiny model predicts one number per input symbol: how long it lasts. FastPitch predicts a second, the pitch. That one value is what turns intonation into a control.'
 seoTitle: 'FastPitch Pitch and FastSpeech 2 Energy in TTS | Mahimai'
 keywords:
@@ -23,16 +24,16 @@ faq:
   - q: 'Did you train FastPitch for this build?'
     a: "No. We trained a duration-only model on a CPU. This page describes FastPitch and FastSpeech 2 from their papers and NVIDIA's NeMo documentation, as the next step you would take from our model."
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Practice from '../../../components/course/Practice.astro';
 
-Our tiny model predicts one number per input symbol: how many 11.6 ms frames it lasts. [FastPitch](https://arxiv.org/abs/2006.06873) predicts a second number per symbol, the pitch, and that single extra value turns intonation from something the decoder guesses into something you can read and edit.
+Duration controls how long a sound lasts. Pitch and energy add control over how it is spoken. This lesson sketches an extension to our model; we did not train that extension.
 
-We did not train FastPitch. This page describes it from the paper and NVIDIA's NeMo documentation, as the next step up from [the model we did train](/learn/100x/tts/train-tts-model-from-scratch). By the end you will know what the pitch and energy predictors add, where their targets come from, and what it would take to add one to a duration-only model.
-
-## What does FastPitch add to FastSpeech?
+## Pitch Prediction
 
 A pitch predictor. For each input symbol it predicts the average fundamental frequency (F0) over the frames that symbol lasts, and feeds that value back into the network before the length regulator.
 
@@ -42,7 +43,7 @@ At training time the true per-symbol pitch goes in; at inference the predicted o
 
 The paper reports that conditioning on pitch contours improves quality to a level "comparable to state-of-the-art", and a real-time factor over 900x for mel synthesis of a typical utterance on its own hardware. We have not reproduced either number.
 
-## Where does energy come in?
+## Energy Conditioning
 
 In [FastSpeech 2](https://arxiv.org/abs/2006.04558). It conditions on three variance signals, pitch, energy and duration, all extracted from the waveform for training and predicted at inference. Energy is a per-frame loudness value computed from the spectrogram.
 
@@ -54,7 +55,7 @@ The FastPitch paper models pitch and duration only, one value of each per input 
 | FastPitch (paper) | Duration, pitch         | Tacotron 2 attention      | Mel + pitch + duration MSE |
 | FastSpeech 2      | Duration, pitch, energy | Extracted from the speech | Mel + variance losses      |
 
-## Why would a TTS model predict pitch at all?
+## Prosody Control
 
 Because the same text can be spoken many ways, and a model trained only on mel loss learns their average. Give it pitch explicitly and it no longer has to average intonation into the mel.
 
@@ -63,7 +64,7 @@ Because the same text can be spoken many ways, and a model trained only on mel l
 - **A target to debug.** You can plot predicted against true pitch for a sentence and see where intonation goes wrong, separately from pronunciation.
 - **A control.** At inference you can shift the whole contour up, flatten it, or raise the last few symbols to make a question, without retraining. NeMo's [FastPitch documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/tts/models.html) describes the same use: modifying the predicted pitch to produce more expressive speech.
 
-## How would you add pitch to our duration-only model?
+## Pitch Extension
 
 By mirroring what already exists for durations. Our model has the pieces; it lacks one target and one small network.
 
@@ -83,3 +84,8 @@ We have not run this. Two cautions apply before you do. Pitch estimation on 0.74
 </Practice>
 
 Before any of this, the tiny model's output still has to become sound. Next: [what a neural vocoder does](/learn/100x/tts/what-is-a-neural-vocoder), and why it took 96.4% of our synthesis time.
+
+<Checkpoint
+  question="Should unvoiced frames enter the voiced-pitch average?"
+  answer="Not as ordinary zero-Hz observations. Use a voicing mask and define how fully unvoiced symbols are represented."
+/>

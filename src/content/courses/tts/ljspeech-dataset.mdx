@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-005
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 5
 unit: 2
-unitTitle: 'The dataset'
-title: 'LJSpeech dataset, measured: what a clean TTS corpus looks like'
-navTitle: 'LJSpeech, measured'
+unitTitle: 'Training Data'
+title: 'Dataset Inspection'
+navTitle: 'Dataset Inspection'
 summary: 'We measured all 13,100 LJSpeech clips. 23.9 hours, one voice, a 4.1 dB loudness spread, silence already trimmed, 2 clipped samples. The numbers a TTS corpus should hit.'
 seoTitle: 'LJSpeech Dataset, Measured Clip by Clip | Mahimai'
 keywords:
@@ -24,17 +25,17 @@ faq:
   - q: 'How do I check a TTS dataset for quality problems?'
     a: 'Measure every clip, not a sample: sample rate and channels, duration, integrated loudness in LUFS, peak level, leading and trailing silence, and clipped samples. Then look at the distribution. Outliers in any one of these usually point at a recording or segmentation problem worth listening to.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 import Practice from '../../../components/course/Practice.astro';
 
-We measured every one of LJSpeech's 13,100 clips. Between the quietest 5% and the loudest 5%, integrated loudness varies by only 4.1 dB. Almost no silence hangs off the ends, and across 23.9 hours of audio exactly two samples reach our 0.999 clipping threshold. That is what a clean text-to-speech corpus looks like when you put numbers on it.
+LJSpeech gives us one speaker, paired transcripts and about 24 hours of audio. Before choosing training clips, inspect the recordings: sample rates, levels, silence and transcript consistency.
 
-By the end of this page you will know what LJSpeech contains, the six measurements we ran on it, and how to run the same checks on a corpus you record yourself.
-
-## What is the LJSpeech dataset?
+## Corpus Contents
 
 LJSpeech is a public-domain English speech corpus of 13,100 short clips read by one speaker, Linda Johnson, with a transcript for each. Its [dataset page](https://keithito.com/LJ-Speech-Dataset/) describes the audio as recorded for the LibriVox project in 2016 and 2017, from seven non-fiction books published between 1884 and 1964.
 
@@ -46,7 +47,7 @@ Three details on that page matter for training:
 
 It is the standard single-speaker English benchmark. The pretrained vocoder we use and the Piper voice we compare against later were both trained on it, which is why we build on it too.
 
-## What does a clean TTS corpus look like in numbers?
+## Audio Measurements
 
 A clean TTS corpus is consistent: one sample rate, one channel, steady loudness, short and even edge silence, and no clipping. Here is LJSpeech 1.1 against each of those, measured by `measure_corpus.py` over all 13,100 clips on a 4-core cloud container.
 
@@ -77,7 +78,7 @@ clipped = int(np.sum(np.abs(audio) >= CLIP))
 
 Loudness comes from [pyloudnorm](https://github.com/csteinmetz1/pyloudnorm), an implementation of ITU-R BS.1770-4. Silence comes from `librosa.effects.trim` with a 40 dB threshold; librosa's default is 60 dB, so we are stricter about what counts as sound.
 
-## Why does loudness consistency matter?
+## Loudness Consistency
 
 Loudness consistency matters because a TTS model learns loudness from the data like everything else. If some clips are recorded 10 dB hotter than others, the model learns that the voice's level drifts, and it will drift at inference with nothing in the text to explain why.
 
@@ -89,13 +90,13 @@ LJSpeech's loudness spreads 4.1 dB from the 5th to the 95th percentile. Integrat
   training run.
 </Pull>
 
-## Why does silence at the edges matter?
+## Edge Silence
 
 Edge silence matters because the model learns to reproduce it. Long, uneven leading or trailing silence teaches a model to pause unpredictably at the start and end of its output, and it inflates the time before the first audible sound.
 
 LJSpeech arrives already trimmed. The median clip starts speaking immediately, the longest leading silence is 0.12 s, and trailing silence has a median of 54 ms and a 95th percentile of 77 ms. That short, even tail suggests the dataset author trimmed deliberately and left a consistent release. Pauses inside the sentence are untouched, and they should be: they carry phrasing.
 
-## What does LJSpeech not give you?
+## Dataset Limits
 
 LJSpeech does not give you variety, and for a single voice that is mostly the point. Recognition models want many speakers and conditions; a synthesis model wants one voice held steady for hours. Still, three limits are worth knowing before you build on it:
 
@@ -111,3 +112,8 @@ We did not train on all 23.9 hours. For the CPU budget of this build we aligned 
   the ten worst clips in every one. Outliers are almost always a recording problem you can fix
   before training.
 </Practice>
+
+<Checkpoint
+  question="Does steady loudness make a corpus ready for training?"
+  answer="No. Check transcript accuracy, coverage, clipping, segmentation and permission to use the recordings too."
+/>

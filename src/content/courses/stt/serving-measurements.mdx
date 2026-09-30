@@ -1,0 +1,52 @@
+---
+lessonId: stt-lesson-027
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 27
+unit: 7
+unitTitle: "Streaming Recognition"
+title: "Serving Measurements"
+navTitle: "Serving Measurements"
+summary: "Report precisely timed work and identify the remaining measurements required for a deployed streaming service."
+seoTitle: "Serving Measurements for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+The saved run includes a warm forward-pass timing for one 1.315-second example. The median was about 0.495 milliseconds over 30 repetitions with four CPU threads. Feature extraction, decoding, queueing, networking and audio capture are excluded.
+
+This number is useful for reproducing a small compute experiment. It cannot establish how long a caller waits, how many streams a server supports, or the cost of a production recognizer.
+
+## Timing Boundaries
+
+| Measurement | Start → end |
+| --- | --- |
+| Feature work | Waveform available → features ready |
+| Encoder work | Feature tensor → frame log probabilities |
+| Decode work | Frame probabilities → output string |
+| Segment delay | Relevant audio boundary → final segment delivered |
+| Reply delay | Caller finishes → first audible response |
+
+Use a monotonic clock for durations. Warmups, batch size, thread count and the timed examples belong in the report. Accelerator work needs appropriate synchronization; the recorded experiment uses CPU execution.
+
+## Capacity Experiment
+
+Do not divide one forward-pass duration into a concurrency promise. Run realistic arrival patterns with complete preprocessing, decoding and per-stream state. Measure queue growth, memory and tail delays, then increase load until the declared targets fail.
+
+Our downloadable lab does not implement an HTTP server, real-time transport or stateful streaming encoder. Those are explicit next engineering tasks, not features implied by the word “serving.”
+
+## Final Deliverable
+
+You now have a small trained recognizer, source and split manifests, decoded predictions, checkpoint-selection evidence, noise probes and a prefix replay. Your final report should state the observed errors as clearly as the successful predictions.
+
+<Checkpoint question="Does a real-time factor below one prove that a server can handle a live call well?" answer="No. Average throughput can coexist with late results, growing queues or unsuitable future context. Measure the complete path and its tail behaviour under the expected workload." />
+
+Use the [latency calculator](/tools/latency-calculator) to think about the wider path, not as a substitute for measurement. Return to the [evaluation harness](/learn/100x/stt/evaluation-harness) to specify the next experiment: a newly locked dataset, a causal encoder or a controlled pretrained adaptation.

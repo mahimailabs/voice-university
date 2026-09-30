@@ -1,11 +1,12 @@
 ---
+lessonId: tts-lesson-017
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 17
 unit: 5
-unitTitle: 'The vocoder'
-title: 'Mel recipe mismatch: what breaks when your mel does not match the vocoder'
-navTitle: 'Mel recipe mismatch'
+unitTitle: 'Waveform Synthesis'
+title: 'Mel Compatibility'
+navTitle: 'Mel Compatibility'
 summary: 'Swap the mel scale from Slaney to HTK and our vocoder output moved from 12.3 to 33.2 dB from the original. Move the frequency ceiling and it barely changed. Measured.'
 seoTitle: 'Mel Recipe Mismatch Between Acoustic Model and Vocoder | Mahimai'
 keywords:
@@ -23,18 +24,18 @@ faq:
   - q: 'Which mel recipe mismatch is the worst?'
     a: 'In our test on one LJSpeech clip with the SpeechBrain HiFi-GAN, switching to the HTK mel scale without Slaney normalisation was by far the worst: log-spectral distance 33.2 dB against 12.3 dB for the correct recipe. Raising fmax from 8,000 to 11,025 Hz moved it only to 12.9 dB, and a librosa dB-scaled power mel gave 14.7 dB.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Pull from '../../../components/course/Pull.astro';
 import AudioSample from '../../../components/course/AudioSample.astro';
 import Practice from '../../../components/course/Practice.astro';
 
-We fed the same 7.55-second clip to the same HiFi-GAN four times, changing how the mel spectrogram was computed: one setting, or one library's defaults. With the correct recipe, the output was 12.3 dB from the original by log-spectral distance. With the HTK mel scale, it was 33.2 dB.
+An 80-bin mel can have the right shape and still mean the wrong thing to a vocoder. Here, four versions of one recording show what happens when feature settings change.
 
-Two other changes that look just as serious barely registered. This page shows the recipe, the four versions you can play, and why the mismatches are so unequal, so that the first time your vocoder produces garbage you know where to look.
-
-## What is a mel recipe?
+## Feature Contract
 
 It is the full list of settings that turns audio into a [mel spectrogram](/learn/100x/tts/mel-spectrogram): sample rate, FFT size, hop, number of mel bins, frequency range, mel scale, filter normalisation, magnitude or power, and log compression. A vocoder learns one recipe, and only that one.
 
@@ -59,7 +60,7 @@ MEL_ARGS = dict(
 
 `SR` is 22,050 and `HOP` is 256. `power=1` means the magnitude spectrogram. `compression=True` applies a natural log, `log(clamp(x, 1e-5))`. None of this is a universal standard, and the defaults in popular libraries disagree with it.
 
-## What happens when the mel recipe does not match the vocoder?
+## Mismatch Results
 
 It depends entirely on which setting is wrong. On LJ001-0009, by log-spectral distance to the original (lower is closer, 80 dB floor):
 
@@ -100,7 +101,7 @@ Each variant is one line against the correct recipe:
   frequency ceiling barely registered.
 </Pull>
 
-## Why is a mel scale mismatch worse than an fmax mismatch?
+## Filter Differences
 
 Because the mel scale decides which frequencies every bin means, while fmax only stretches where the filters end. A vocoder reads bin positions as meaning.
 
@@ -110,7 +111,7 @@ Moving fmax from 8,000 to 11,025 Hz keeps the scale and count and spreads the 80
 
 The librosa variant sits between the two. We passed it the vocoder's `n_fft` 1024, hop 256 and 80 mels, and it still changes several things at once: power instead of magnitude, decibels (`10 log10`) instead of a natural log, an 80 dB floor below the peak, and librosa's default fmax, which is half the sample rate. Its values are on a different scale from what the vocoder expects, yet it scored 14.7 dB. We did not isolate which of those changes cost the most.
 
-## How do you check a mel recipe before training?
+## Compatibility Checks
 
 Run [copy synthesis](/learn/100x/tts/what-is-a-neural-vocoder) with your recipe on a real clip before you train anything. If the vocoder cannot render mels computed from real audio, it will not render your model's predictions either.
 
@@ -123,5 +124,10 @@ A shape check belongs in the pipeline too. Our data prep recomputes each clip's 
   recipe out as one dictionary. Run copy synthesis on one real clip with that dictionary. Only if
   copy synthesis sounds right should you look at your acoustic model.
 </Practice>
+
+<Checkpoint
+  question="Does the worst score on one clip establish a universal ranking?"
+  answer="No. It diagnoses this recipe and checkpoint on this clip. Repeat across representative recordings and listen to the results."
+/>
 
 Next: [end-to-end TTS with VITS](/learn/100x/tts/end-to-end-tts-vits), which removes this class of bug at inference: there is no mel hand-off between separately trained models.

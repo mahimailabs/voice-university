@@ -1,0 +1,43 @@
+{
+  "course": "livekit",
+  "unit": 3,
+  "version": "1",
+  "questions": [
+    {
+      "id": "livekit-3-1",
+      "prompt": "Why can summing process RSS overstate fleet memory?",
+      "options": [
+        "Shared pages can be counted in multiple processes",
+        "RSS measures only network traffic",
+        "RSS always excludes libraries"
+      ],
+      "correct": 0,
+      "explanation": "RSS includes resident shared pages per process. PSS apportions them and is useful alongside other memory measurements.",
+      "lesson": "/learn/100x/livekit/livekit-agent-memory-pss-rss"
+    },
+    {
+      "id": "livekit-3-2",
+      "prompt": "What should a controlled shutdown allow active jobs to do?",
+      "options": [
+        "Lose the media process immediately",
+        "Start an unlimited number of new jobs",
+        "Finish or reach a defined drain deadline"
+      ],
+      "correct": 2,
+      "explanation": "Draining stops accepting work while existing sessions finish, subject to deployment timeout policy.",
+      "lesson": "/learn/100x/livekit/livekit-agent-shutdown-leak"
+    },
+    {
+      "id": "livekit-3-3",
+      "prompt": "What should justify a worker load threshold?",
+      "options": [
+        "The course\u2019s example as a universal limit",
+        "Measured behaviour under the intended workload",
+        "The largest value the configuration accepts"
+      ],
+      "correct": 1,
+      "explanation": "A threshold is a workload-dependent admission signal. Validate it against latency, resources and failures.",
+      "lesson": "/learn/100x/livekit/livekit-worker-load-threshold"
+    }
+  ]
+}

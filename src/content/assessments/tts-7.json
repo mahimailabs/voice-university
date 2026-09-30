@@ -1,0 +1,43 @@
+{
+  "course": "tts",
+  "unit": 7,
+  "version": "1",
+  "questions": [
+    {
+      "id": "tts-7-1",
+      "prompt": "What does LoRA typically train?",
+      "options": [
+        "Every base weight by definition",
+        "Only the phoneme duration labels",
+        "Low-rank parameter updates"
+      ],
+      "correct": 2,
+      "explanation": "LoRA adapts selected weights through low-rank updates; the chosen base model and target modules still matter.",
+      "lesson": "/learn/100x/tts/lora-tts-fine-tuning"
+    },
+    {
+      "id": "tts-7-2",
+      "prompt": "The first chunk arrives quickly but playback repeatedly stops. What should you measure?",
+      "options": [
+        "Only the last chunk\u2019s size",
+        "Chunk timing and buffer underruns",
+        "Only time to first audio"
+      ],
+      "correct": 1,
+      "explanation": "A fast start does not guarantee uninterrupted playback. Check production rate against consumption.",
+      "lesson": "/learn/100x/tts/tts-streaming-serving"
+    },
+    {
+      "id": "tts-7-3",
+      "prompt": "A GPU price alone is enough to estimate cost per delivered audio minute. Is that sound?",
+      "options": [
+        "No; include measured throughput, utilization and supporting costs",
+        "Yes; hourly price is the whole calculation",
+        "Yes; divide by the number of model parameters"
+      ],
+      "correct": 0,
+      "explanation": "Unit cost depends on how much useful audio is produced for the billed resources and operational overhead.",
+      "lesson": "/learn/100x/tts/tts-cost-and-deployment"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+---
+lessonId: stt-lesson-020
+course: "stt"
+courseTitle: "STT from Scratch"
+order: 20
+unit: 6
+unitTitle: "Model Improvements"
+title: "Beam Search"
+navTitle: "Beam Search"
+summary: "Compare greedy paths with a bounded search that aggregates alternative CTC paths."
+seoTitle: "Beam Search for Speech Recognition | Mahimai"
+proficiency: "Intermediate"
+prerequisites: ["Python basics", "PyTorch tensors"]
+status: "ready"
+updatedDate: "2026-09-30"
+---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
+import LearnDiagram from '../../../components/learn/LearnDiagram.astro';
+import AudioSample from '../../../components/course/AudioSample.astro';
+import STTLab from '../../../components/islands/STTLab';
+import TrainingEvidence from '../../../components/course/TrainingEvidence.astro';
+
+Several frame paths can collapse to the same digit string. A greedy decoder follows only the largest probability at each frame. A beam decoder keeps alternatives and aggregates paths that represent the same output.
+
+## Search State
+
+The lab's educational decoder stores a state as `(text, last_frame_token)`. Keeping the last token is necessary because appending the same digit after blank differs from repeating it directly.
+
+```python
+output = text + (str(token - 1) if token and token != last else '')
+key = (output, token)
+next_scores[key] = np.logaddexp(next_scores.get(key, -np.inf), score + logp)
+```
+
+After each frame, it groups scores by output prefix and keeps the ten best prefixes. This is a small, inspectable implementation, not an optimized production decoder. Read `beam_decode()` in `probes.py` before increasing its width.
+
+## Recorded Probe
+
+<TrainingEvidence kind="beam" />
+
+The probe covers one development example. Agreement with greedy decoding on that example would not make beam search useless; disagreement would not prove it is better. A useful decision requires the fixed evaluation set and decoding-time measurements.
+
+## Search Tradeoff
+
+Increasing width retains more alternatives but does more work. It does not add missing acoustic information or enlarge the model's vocabulary. Start with acoustic probabilities only; vocabulary priors introduce another factor to evaluate separately.
+
+<Checkpoint question="Does beam width ten guarantee the globally most probable transcript?" answer="No. Pruning can discard a prefix that would later become competitive. A bounded search trades completeness for work, and its result still depends on the model probabilities." />
+
+The [CTC explanation](https://distill.pub/2017/ctc/) motivates path aggregation. Compare with [Greedy Decoding](/learn/100x/stt/greedy-decoding), and retain paired results using the [Evaluation Harness](/learn/100x/stt/evaluation-harness) before adding [Vocabulary Biasing](/learn/100x/stt/vocabulary-biasing).

@@ -1,11 +1,12 @@
 ---
+lessonId: livekit-lesson-024
 course: 'livekit'
-courseTitle: 'LiveKit'
+courseTitle: 'LiveKit Mastery'
 order: 24
 unit: 6
-unitTitle: 'Operating in production'
-title: 'Zero-downtime deploys for voice agents: draining without dropping calls'
-navTitle: 'Zero-downtime deploys'
+unitTitle: 'Production Operations'
+title: 'Draining Deploys'
+navTitle: 'Draining Deploys'
 summary: 'A 30-second kill timer ends a ten-minute call mid-sentence. How to drain LiveKit workers and SFU nodes on SIGTERM, one node at a time, with the timeouts in order.'
 seoTitle: 'Zero-Downtime Deploys for Voice Agents | Mahimai'
 keywords:
@@ -23,8 +24,10 @@ faq:
   - q: 'Why do calls still drop even with drain_timeout configured?'
     a: 'Usually a supervisor kills the process first. A systemd TimeoutStopSec, a Kubernetes terminationGracePeriodSeconds or an Auto Scaling lifecycle hook timeout shorter than the drain ends in SIGKILL or termination, whatever the framework was waiting for.'
 status: 'ready'
-updatedDate: 2026-09-27
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import DiagramEmbed from '../../../components/course/figures/DiagramEmbed.astro';
 
@@ -32,9 +35,7 @@ A web service deploys by replacing instances behind a balancer, and nobody notic
 
 The framework knows how to wait. Your supervisor usually does not. A 30-second kill timer in front of a worker holding a ten-minute call ends that call mid-sentence, whatever the drain setting says.
 
-By the end of this lesson you'll have the drain sequence for both tiers, the three timeouts that have to line up, and a way to prove the deploy drops zero calls before a campaign does it for you.
-
-## What draining means for a voice fleet
+## Drain Behaviour
 
 Draining means a node stops taking new calls, lets its existing calls end on their own, and only then exits. Every zero-downtime voice deploy is this one primitive applied per tier.
 
@@ -47,7 +48,7 @@ Both LiveKit components drain natively on a termination signal. What differs is 
 
 Sources: [agent server options](https://docs.livekit.io/agents/server/options/) and [downscaling and draining](https://docs.livekit.io/transport/self-hosting/distributed/) in the LiveKit docs.
 
-## Draining an agent worker: three timeouts in order
+## Shutdown Timeouts
 
 A worker in production (`start`) mode drains on SIGTERM: it stops accepting jobs and waits for running ones, up to `drain_timeout`. The default is one hour. The deploy only works when every timer above it is longer.
 
@@ -80,7 +81,7 @@ spec:
 
 This is also where [the agent shutdown leak](/learn/100x/livekit/livekit-agent-shutdown-leak) stops being theory: a worker that never reports job completion never finishes draining, and your deploy pipeline hangs on a bug you shipped weeks earlier. If a drain takes exactly `drain_timeout` every time, suspect that before you suspect long calls.
 
-## Draining an SFU node on AWS
+## Termination Hooks
 
 To drain an SFU node, stop new room placement on it, let existing rooms end naturally, then terminate. A multi-node deployment with Redis makes this workable, because new rooms route to the remaining nodes while this one empties (see [multi-node LiveKit with Redis](/learn/100x/livekit/livekit-multi-node-redis)).
 
@@ -94,7 +95,7 @@ aws autoscaling put-lifecycle-hook \
   --heartbeat-timeout 900
 ```
 
-The sequence for one node:
+The hook does not execute the drain by itself. Wire its event to an instance-side agent or orchestration handler with permission to send heartbeats and complete the lifecycle action. Then use this sequence:
 
 1. The hook fires and the instance enters its wait state.
 2. On the instance, stop the LiveKit service so it receives SIGTERM and starts draining. The server exits when its last participant leaves, so the unit's `TimeoutStopSec` must also outlast your longest call.
@@ -109,9 +110,9 @@ aws autoscaling complete-lifecycle-action \
   --instance-id "$INSTANCE_ID"
 ```
 
-Two limits from the [AWS lifecycle hook docs](https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html) matter here. The heartbeat timeout ranges from 30 to 7,200 seconds, and termination hooks are best effort: if the hook times out, the instance is terminated immediately, calls or not. The guard from the autoscaling lesson doubles as the deploy guard: nodes report calls, and nothing terminates a node above zero.
+Two limits from the [AWS lifecycle hook docs](https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html) matter here. The heartbeat timeout ranges from 30 to 7,200 seconds, and termination hooks have a finite global timeout too; repeated heartbeats cannot wait forever. A timeout can allow termination while calls remain. The drain guard should prevent routine termination above zero, but cannot guarantee survival of a crash, expired hook or forced termination. Test those recovery paths separately.
 
-## The rolling deploy, step by step
+## Rolling Replacement
 
 Roll one node at a time and drain each one fully before terminating it. Your longest call sets the deploy clock. The CI pipeline does not.
 
@@ -119,8 +120,8 @@ Roll one node at a time and drain each one fully before terminating it. Your lon
   id="voice-drain-deploy"
   title="A rolling, draining deploy for a voice fleet (interactive workflow diagram)"
 >
-  One node at a time: stop new work, wait out the longest call, check the node holds zero calls,
-  then replace it.
+  One node at a time: stop new work, wait for active calls to finish, check the node holds zero
+  calls, then replace it.
 </DiagramEmbed>
 
 1. **Pick the traffic trough.** Deploy when the fewest calls are in flight.
@@ -130,10 +131,15 @@ Roll one node at a time and drain each one fully before terminating it. Your lon
 5. **Replace and verify.** The new node registers and takes calls before the next one drains.
 6. **Know the duration.** Measure how long a drain actually takes on your traffic, and budget the deploy as that number times the node count.
 
-## Prove it under load before you rely on it
+## Deploy Exercise
 
-Test the drain path under load before you need it: deploy during a load test and count dropped calls, and the number you get is either zero or a defect of the kind covered in [silent failures](/learn/100x/livekit/voice-silent-failures). Finding it during a test costs nothing. Finding it during a campaign costs the campaign.
+Test the drain path under load before you need it: deploy during a load test and count dropped calls, and the number you get is either zero or a defect of the kind covered in [silent failures](/learn/100x/livekit/voice-silent-failures). A controlled test limits the customer impact. Finding it during a campaign costs the campaign.
 
 The stakes are bigger than one deploy. Voice fleets that cannot deploy safely stop deploying, and then the real cost arrives: the fix that waits three weeks for a maintenance window. Drain discipline is what lets infrastructure that holds phone calls keep the deploy cadence of a web service.
 
 Next: the last number that decides whether you keep running any of this yourself, [self-hosted LiveKit cost per minute](/learn/100x/livekit/self-hosted-livekit-cost).
+
+<Checkpoint
+  question="Does creating an AWS lifecycle hook automatically signal LiveKit to drain?"
+  answer="No. An event handler or deployment agent must receive the hook, signal the service, send heartbeats and complete the action after verifying it is safe."
+/>

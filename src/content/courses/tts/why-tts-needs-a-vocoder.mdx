@@ -1,12 +1,13 @@
 ---
+lessonId: tts-lesson-003
 course: 'tts'
 courseTitle: 'TTS from Scratch'
 order: 3
 unit: 1
-unitTitle: 'Sound as numbers'
-title: 'Why TTS needs a vocoder: phase, copy synthesis and the quality ceiling'
-navTitle: 'Why a vocoder'
-summary: 'We ran a real clip through its own mel spectrogram and a pretrained HiFi-GAN. It landed 12.3 dB from the original by log-spectral distance: our ceiling.'
+unitTitle: 'Audio Foundations'
+title: 'Waveform Reconstruction'
+navTitle: 'Waveform Reconstruction'
+summary: 'We ran a real clip through its own mel spectrogram and a pretrained HiFi-GAN. It landed 12.3 dB from the original by log-spectral distance: a reconstruction reference.'
 seoTitle: 'Why TTS Needs a Vocoder: Phase and Copy Synthesis | Mahimai'
 keywords:
   - 'vocoder'
@@ -20,22 +21,22 @@ faq:
   - q: 'Why can a mel spectrogram not be played directly?'
     a: 'A mel spectrogram keeps only how much energy sits in each of 80 frequency bands per frame. It discards phase, the timing of each frequency component, and it merges hundreds of FFT bins into 80 bands. A waveform needs both, so something has to estimate the missing information. That something is the vocoder.'
   - q: 'What is copy synthesis in TTS?'
-    a: 'Copy synthesis means taking a real recording, computing its mel spectrogram with the vocoder recipe, and running that through the vocoder. The acoustic model is left out entirely, so the result is the best the vocoder can do with a perfect mel spectrogram. It is the ceiling for any acoustic model you pair with that vocoder.'
+    a: 'Copy synthesis means taking a real recording, computing its mel spectrogram with the vocoder recipe, and running that through the vocoder. The acoustic model is left out entirely, so the result isolates reconstruction with a real mel input. It is a useful reference, not a mathematical upper bound on perceived quality.'
   - q: 'Did you train the HiFi-GAN vocoder yourselves?'
     a: 'No. We used the pretrained speechbrain/tts-hifigan-ljspeech checkpoint, released under Apache-2.0 and trained on the same LJSpeech speaker. We trained the acoustic model from random weights; the vocoder only turns mel frames into audio and was never updated.'
 status: 'ready'
-updatedDate: 2026-09-28
+updatedDate: 2026-09-30
 ---
+
+import Checkpoint from '../../../components/learn/Checkpoint.astro';
 
 import Figure from '../../../components/course/Figure.astro';
 import AudioSample from '../../../components/course/AudioSample.astro';
 import TtsPipeline from '../../../components/course/figures/TtsPipeline.astro';
 
-We took a real LJSpeech recording, computed its mel spectrogram with the exact vocoder recipe, and asked a pretrained HiFi-GAN to turn it back into audio. On that clip the output landed 12.3 dB from the original by log-spectral distance. Nothing was wrong with the mel. The gap is what a vocoder costs.
+A mel spectrogram cannot be played through a speaker. It has lost phase and frequency detail. A vocoder estimates a waveform from what remains; copy synthesis lets us hear that stage on its own.
 
-This page explains where that gap comes from (phase), why the vocoder exists at all, and why the copy-synthesis number is the ceiling for every model we train later.
-
-## What does a mel spectrogram throw away?
+## Missing Phase
 
 A mel spectrogram throws away phase and most of the frequency detail. It keeps only how much energy each of 80 bands holds in each 11.6 ms frame; it keeps nothing about where each wave sits in its cycle, and it has merged 513 FFT bins into those 80 bands.
 
@@ -43,7 +44,7 @@ Phase is the timing of each frequency component. Two sine waves at the same freq
 
 Frequency detail goes too. The [mel spectrogram lesson](/learn/100x/tts/mel-spectrogram) collapsed 513 bins to 80 and cut everything above 8,000 Hz. Going back from 80 numbers to 513 has no unique answer.
 
-## Why does a TTS model need a vocoder?
+## Waveform Generation
 
 A TTS model needs a vocoder because the acoustic model predicts a mel spectrogram, and a mel spectrogram cannot be played: something has to invent a plausible phase and fill in the missing detail to produce a waveform. That component is the vocoder.
 
@@ -57,9 +58,9 @@ There is a classical way to fill in phase without a neural network. Griffin-Lim 
 
 A neural vocoder learns the mapping from mel to waveform from real recordings. [HiFi-GAN](https://arxiv.org/abs/2010.05646) is a generative adversarial network that does this; its paper reports generating 22.05 kHz audio about 168 times faster than real time on a V100 GPU, and a smaller CPU variant at 13.4 times faster than real time. We use the [SpeechBrain LJSpeech checkpoint](https://huggingface.co/speechbrain/tts-hifigan-ljspeech), trained on the same speaker as our data and released under Apache-2.0.
 
-## What is copy synthesis, and why is it the ceiling?
+## Copy Synthesis
 
-Copy synthesis is running a real recording's own mel spectrogram through the vocoder, with no acoustic model involved. It shows the best the vocoder can do when handed a perfect input, so it is the ceiling for any model that feeds that vocoder.
+Copy synthesis is running a real recording's own mel spectrogram through the vocoder, with no acoustic model involved. It isolates the vocoder with a real mel input. Use it as a reconstruction reference, not a universal upper bound: predicted mels have a different distribution, and spectral distance is not perceived quality.
 
 Here are the key lines of `vocoder_demo.py`, lightly condensed: compute the mel with the shared recipe, decode it, and score the result against the original.
 
@@ -85,14 +86,19 @@ Our test clip is LJ001-0009, 7.55 s: "Printing, then, for our purpose, may be co
   dB log-spectral distance from the original on this clip.
 </AudioSample>
 
-Every model later in the build is measured against this pair. When our tiny acoustic model produces a mel, the vocoder output should not be expected to beat the second player, because that one already had a perfect mel.
+Compare generated speech with this pair to separate acoustic-model errors from reconstruction artefacts. A spectral score on one clip does not establish a quality ceiling for every possible input.
 
-## How fast is the vocoder on a CPU?
+## CPU Timing
 
 On a 4-core cloud container with no GPU, the vocoder ran at a real-time factor of 0.19 to 0.27 across the runs in our vocoder demo on this clip, so roughly four to five times faster than real time. The 0.27 was the first, cold run.
 
 That speed matters more than it looks. When we timed the full pipeline later, the vocoder took 96.4% of synthesis time and our acoustic model the other 3.6%. [What is a neural vocoder](/learn/100x/tts/what-is-a-neural-vocoder) picks that number apart.
 
 We did not train the vocoder, and that choice is deliberate. A vocoder learns from audio alone, with no text, so a public checkpoint trained on the same speaker covers that stage (at the 12.3 dB copy-synthesis cost measured above), and it lets our training budget go entirely to the part that turns text into sound. What "from scratch" means in this build is the acoustic model, trained from random weights in [unit 4](/learn/100x/tts/train-tts-model-from-scratch), with every stage wired together by us.
+
+<Checkpoint
+  question="Does poor copy synthesis prove the acoustic model is wrong?"
+  answer="No acoustic model is involved. Check the feature recipe, vocoder and audio path first."
+/>
 
 Next: [telephone audio for TTS](/learn/100x/tts/telephone-audio-for-tts), where the copy-synthesised clip goes through an 8 kHz phone path. On the original recording, 10.5% of the energy sits above 4 kHz, and narrowband telephony removes that band.
