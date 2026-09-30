@@ -26,11 +26,9 @@ This repository owns the learning content. [mahimai.ca](https://github.com/mahim
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions arrive through pull requests. Keep changes focused and include sources or reproducible examples for technical claims.
 
-## Publishing
+## Private revision phase
 
-The site fetches `main` during its build and copies the four content directories above into the same paths. Existing lesson URLs remain unchanged. A fetch failure stops the build rather than silently publishing stale content.
-
-A merge here becomes visible on the **next website deployment**. This repository does not independently trigger that deployment; use the website’s existing deployment process after merging content.
+This repository is private while the lessons and components are revised. The website’s automatic remote sync is paused; builds use the existing committed content snapshot. Lessons already published on mahimai.ca remain visible.
 
 For local previews, clone this repository beside `mahimai.ca`, then run from the site:
 
@@ -39,4 +37,6 @@ pnpm university:sync:local
 pnpm dev
 ```
 
-To fetch the published content instead, run `pnpm university:sync` from the site. Sync replaces the managed directories: edit lessons here, not in the site’s mirrored copy.
+Sync replaces the managed directories: edit lessons here, not in the site’s mirrored copy. Do not commit private drafts to the website repository until they are ready to publish.
+
+When the revisions are ready, make this repository public and re-enable `tsx scripts/sync-university.ts` before Astro in the website build command. A content merge alone does not trigger a site deployment.
